@@ -16,7 +16,7 @@ export default function Home() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Shield className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">ERC-8004 Policy</span>
+            <span className="text-xl font-bold">Guardrail</span>
           </div>
           <ConnectButton />
         </div>
@@ -25,11 +25,11 @@ export default function Home() {
       <main className="container mx-auto px-4 py-16">
         <div className="text-center mb-16">
           <h1 className="text-4xl md:text-6xl font-bold mb-4">
-            Permission & Policy Layer for AI Agents
+            Guardrails for Your AI Agents
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
             Safely authorize what your AI agents can do on-chain.
-            AWS IAM + CloudTrail for autonomous crypto agents.
+            Permission controls, policy enforcement, and complete audit trails.
           </p>
 
           {!isConnected ? (
@@ -117,7 +117,7 @@ export default function Home() {
 
       <footer className="border-t mt-16">
         <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-          <p>Built with ERC-8004 Standard</p>
+          <p>Guardrail · Built on ERC-8004 Standard</p>
         </div>
       </footer>
     </div>

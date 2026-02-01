@@ -31,7 +31,7 @@ export function useAuth() {
       const message = new SiweMessage({
         domain: window.location.host,
         address,
-        statement: 'Sign in to ERC-8004 Policy Dashboard',
+        statement: 'Sign in to Guardrail',
         uri: window.location.origin,
         version: '1',
         chainId: 1,

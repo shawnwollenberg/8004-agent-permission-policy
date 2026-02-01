@@ -1,6 +1,8 @@
-# ERC-8004 Policy SaaS
+# Guardrail
 
-Permission, policy, and audit layer for AI agents. "AWS IAM + CloudTrail for autonomous crypto agents."
+Permission, policy, and audit layer for AI agents. Safely authorize what your agents can do on-chain.
+
+Built on the ERC-8004 standard.
 
 ## Architecture
 

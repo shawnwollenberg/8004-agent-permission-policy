@@ -4,7 +4,7 @@ import { getDefaultConfig } from '@rainbow-me/rainbowkit'
 import { mainnet, sepolia, baseSepolia } from 'wagmi/chains'
 
 export const config = getDefaultConfig({
-  appName: 'ERC-8004 Policy Dashboard',
+  appName: 'Guardrail',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo-project-id',
   chains: [mainnet, sepolia, baseSepolia],
   ssr: true,

@@ -6,8 +6,8 @@ import { Providers } from './providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'ERC-8004 Policy Dashboard',
-  description: 'Permission, policy, and audit layer for AI agents',
+  title: 'Guardrail - AI Agent Permissions',
+  description: 'Permission, policy, and audit layer for AI agents. Safely authorize what your agents can do on-chain.',
 }
 
 export default function RootLayout({
