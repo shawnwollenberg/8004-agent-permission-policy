@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS webhooks;
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS validation_requests;
+DROP TABLE IF EXISTS permissions;
+DROP TABLE IF EXISTS policy_versions;
+DROP TABLE IF EXISTS policies;
+DROP TABLE IF EXISTS agents;
+DROP TABLE IF EXISTS api_keys;
+DROP TABLE IF EXISTS wallets;
