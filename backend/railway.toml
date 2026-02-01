@@ -1,9 +1,7 @@
 [build]
-builder = "nixpacks"
-buildCommand = "go build -o bin/server ./cmd/server"
+builder = "dockerfile"
 
 [deploy]
-startCommand = "./bin/server"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
