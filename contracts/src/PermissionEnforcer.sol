@@ -167,7 +167,11 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
         Constraints storage constraints = permissionConstraints[permissionId];
 
         // If no constraints set, allow by default
-        if (constraints.maxValuePerTx == 0 && constraints.allowedActions.length == 0) {
+        if (constraints.maxValuePerTx == 0 &&
+            constraints.maxDailyVolume == 0 &&
+            constraints.maxTxCount == 0 &&
+            constraints.allowedActions.length == 0 &&
+            constraints.allowedTokens.length == 0) {
             return true;
         }
 

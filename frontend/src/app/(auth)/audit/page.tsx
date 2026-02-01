@@ -6,9 +6,8 @@ import { audit, agents, policies, type AuditLog } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { formatDateTime, formatRelativeTime } from '@/lib/utils'
-import { Activity, Download, Search, Filter } from 'lucide-react'
+import { Activity, Download, Filter } from 'lucide-react'
 import * as Select from '@radix-ui/react-select'
 
 const eventTypes = [
@@ -84,10 +83,7 @@ export default function AuditPage() {
 
   const handleExport = (format: 'json' | 'csv') => {
     const token = localStorage.getItem('auth_token')
-    const url = audit.export(format, {
-      start_date: filters.start_date,
-      end_date: filters.end_date,
-    } as any)
+    const url = audit.export(format)
     window.open(`${url}&token=${token}`, '_blank')
   }
 
