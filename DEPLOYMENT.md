@@ -74,36 +74,70 @@ Note: The private key above is Anvil's default test account #0.
 
 ### Backend (Railway)
 
+The backend includes Railway configuration files (`railway.toml` and `nixpacks.toml`) that tell Railway how to build and run the Go application.
+
+#### Option A: Deploy via GitHub (Recommended)
+
 1. **Create a Railway account** at https://railway.app
 
-2. **Create a new project** and add a PostgreSQL database
+2. **Create a new project** from your GitHub repository:
+   - Click "New Project" → "Deploy from GitHub repo"
+   - Select your repository
+   - Railway will auto-detect the `backend` directory
 
-3. **Deploy the backend:**
-   ```bash
-   # Install Railway CLI
-   npm install -g @railway/cli
+3. **Configure the service:**
+   - Go to your service settings
+   - Set the **Root Directory** to `backend`
+   - Railway will use `railway.toml` and `nixpacks.toml` for build configuration
 
-   # Login
-   railway login
+4. **Add a PostgreSQL database:**
+   - Click "New" → "Database" → "PostgreSQL"
+   - Railway will automatically set `DATABASE_URL`
 
-   # Link to your project
-   cd backend
-   railway link
-
-   # Deploy
-   railway up
-   ```
-
-4. **Set environment variables** in Railway dashboard:
+5. **Set environment variables** in the Variables tab:
    ```
    PORT=8080
    ENVIRONMENT=production
-   DATABASE_URL=<from Railway PostgreSQL>
    JWT_SECRET=<generate a secure random string>
    CORS_ORIGIN=https://your-frontend-domain.vercel.app
    RPC_URL=https://sepolia.infura.io/v3/<your-key>
    CHAIN_ID=11155111
    ```
+   Note: `DATABASE_URL` is automatically set when you add a PostgreSQL database.
+
+6. **Run migrations** (after first deployment):
+   ```bash
+   # Install Railway CLI
+   npm install -g @railway/cli
+   railway login
+   railway link
+
+   # Run migrations
+   railway run migrate -path internal/database/migrations -database "$DATABASE_URL" up
+   ```
+
+#### Option B: Deploy via CLI
+
+1. **Install and login to Railway CLI:**
+   ```bash
+   npm install -g @railway/cli
+   railway login
+   ```
+
+2. **Create project and add database:**
+   ```bash
+   railway init
+   railway add --database postgres
+   ```
+
+3. **Link and deploy:**
+   ```bash
+   cd backend
+   railway link
+   railway up
+   ```
+
+4. **Set environment variables** in Railway dashboard (same as Option A step 5)
 
 5. **Run migrations:**
    ```bash
@@ -337,7 +371,23 @@ if validate_action("agent-uuid", {
 
 ## Troubleshooting
 
-### Backend won't start
+### Railway deployment fails
+
+**"Error creating build plan with Railpack"**
+- Ensure `railway.toml` and `nixpacks.toml` exist in the `backend` directory
+- Set the **Root Directory** to `backend` in service settings
+- Commit and push both config files to your repository
+
+**Build fails with Go errors**
+- Check that `go.mod` and `go.sum` are committed
+- Verify Go version in `nixpacks.toml` matches your `go.mod` (Go 1.22)
+
+**Health check fails**
+- The backend exposes `/health` endpoint on the configured PORT
+- Ensure `PORT` environment variable is set to `8080`
+- Check deployment logs: `railway logs`
+
+### Backend won't start (local)
 - Check PostgreSQL is running: `docker-compose ps`
 - Check DATABASE_URL is correct
 - Run migrations: `docker-compose run --rm migrate`
