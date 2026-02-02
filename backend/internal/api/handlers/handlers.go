@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/erc8004/policy-saas/internal/config"
 	"github.com/erc8004/policy-saas/internal/domain/audit"
 	"github.com/erc8004/policy-saas/internal/domain/policy"
 )
@@ -14,14 +15,16 @@ import (
 type Handlers struct {
 	db           *pgxpool.Pool
 	logger       zerolog.Logger
+	cfg          *config.Config
 	policyEngine *policy.Engine
 	auditLogger  *audit.Logger
 }
 
-func New(db *pgxpool.Pool, logger zerolog.Logger) *Handlers {
+func New(db *pgxpool.Pool, logger zerolog.Logger, cfg *config.Config) *Handlers {
 	return &Handlers{
 		db:           db,
 		logger:       logger,
+		cfg:          cfg,
 		policyEngine: policy.NewEngine(db, logger),
 		auditLogger:  audit.NewLogger(db, logger),
 	}

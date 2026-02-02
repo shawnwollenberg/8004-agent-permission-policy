@@ -105,7 +105,7 @@ func (h *Handlers) VerifySignature(w http.ResponseWriter, r *http.Request) {
 		"exp":    time.Now().Add(24 * time.Hour).Unix(),
 	})
 
-	tokenString, err := token.SignedString([]byte("your-secret-key-change-in-production"))
+	tokenString, err := token.SignedString([]byte(h.cfg.JWT.Secret))
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to generate token")
 		return

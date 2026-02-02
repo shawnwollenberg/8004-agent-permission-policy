@@ -29,7 +29,7 @@ func NewServer(cfg *config.Config, db *pgxpool.Pool, logger zerolog.Logger) *Ser
 		config:   cfg,
 		db:       db,
 		logger:   logger,
-		handlers: handlers.New(db, logger),
+		handlers: handlers.New(db, logger, cfg),
 	}
 	s.setupMiddleware()
 	s.setupRoutes()
