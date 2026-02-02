@@ -10,6 +10,7 @@ export function useAuth() {
   const { signMessageAsync } = useSignMessage()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token')
@@ -19,6 +20,7 @@ export function useAuth() {
     } else {
       setIsAuthenticated(false)
     }
+    setIsInitialized(true)
   }, [address])
 
   const signIn = useCallback(async () => {
@@ -74,6 +76,7 @@ export function useAuth() {
     isConnected,
     isAuthenticated,
     isLoading,
+    isInitialized,
     address,
     signIn,
     signOut,

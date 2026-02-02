@@ -31,15 +31,25 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isConnected, isAuthenticated } = useAuth()
+  const { isConnected, isAuthenticated, isInitialized } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
 
   useEffect(() => {
-    if (!isConnected || !isAuthenticated) {
+    // Wait for auth state to be initialized before redirecting
+    if (isInitialized && (!isConnected || !isAuthenticated)) {
       router.push('/')
     }
-  }, [isConnected, isAuthenticated, router])
+  }, [isConnected, isAuthenticated, isInitialized, router])
+
+  // Show nothing while initializing to prevent flash
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   if (!isConnected || !isAuthenticated) {
     return null
