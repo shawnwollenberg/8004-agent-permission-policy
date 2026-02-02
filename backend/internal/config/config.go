@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -39,11 +40,21 @@ type JWTConfig struct {
 }
 
 func Load() *Config {
+	// Parse CORS origins - supports comma-separated values
+	corsOrigin := getEnv("CORS_ORIGIN", "http://localhost:3000")
+	var origins []string
+	for _, o := range strings.Split(corsOrigin, ",") {
+		trimmed := strings.TrimSpace(o)
+		if trimmed != "" {
+			origins = append(origins, trimmed)
+		}
+	}
+
 	return &Config{
 		Server: ServerConfig{
 			Port:         getEnv("PORT", "8080"),
 			Environment:  getEnv("ENVIRONMENT", "development"),
-			AllowOrigins: []string{getEnv("CORS_ORIGIN", "http://localhost:3000")},
+			AllowOrigins: origins,
 		},
 		Database: DatabaseConfig{
 			URL:             getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/erc8004?sslmode=disable"),

@@ -28,7 +28,7 @@ func main() {
 
 	// Load config
 	cfg := config.Load()
-	logger.Info().Str("environment", cfg.Server.Environment).Msg("starting server")
+	logger.Info().Str("environment", cfg.Server.Environment).Strs("cors_origins", cfg.Server.AllowOrigins).Msg("starting server")
 
 	// Connect to database
 	ctx := context.Background()
