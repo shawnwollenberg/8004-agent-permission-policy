@@ -37,9 +37,22 @@ export default function Home() {
               <ConnectButton />
             </div>
           ) : !isAuthenticated ? (
-            <Button size="lg" onClick={signIn} disabled={isLoading}>
-              {isLoading ? 'Signing...' : 'Sign In with Wallet'}
-            </Button>
+            <div className="flex flex-col items-center gap-4">
+              <Button
+                size="lg"
+                onClick={() => {
+                  console.log('Button clicked!')
+                  signIn()
+                }}
+                disabled={isLoading}
+                className="relative z-50"
+              >
+                {isLoading ? 'Signing...' : 'Sign In with Wallet'}
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                Click above to sign a message and authenticate
+              </p>
+            </div>
           ) : (
             <Link href="/dashboard">
               <Button size="lg">Go to Dashboard</Button>

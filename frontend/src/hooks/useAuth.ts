@@ -22,11 +22,16 @@ export function useAuth() {
   }, [address])
 
   const signIn = useCallback(async () => {
-    if (!address) return
+    if (!address) {
+      console.error('No address available')
+      return
+    }
 
     setIsLoading(true)
     try {
+      console.log('Getting nonce...')
       const { nonce } = await auth.getNonce()
+      console.log('Got nonce:', nonce)
 
       const message = new SiweMessage({
         domain: window.location.host,
@@ -39,16 +44,21 @@ export function useAuth() {
       })
 
       const messageString = message.prepareMessage()
+      console.log('Requesting signature...')
       const signature = await signMessageAsync({ message: messageString })
+      console.log('Got signature')
 
+      console.log('Verifying...')
       const { token } = await auth.verify(messageString, signature)
+      console.log('Verified, got token')
 
       localStorage.setItem('auth_token', token)
       localStorage.setItem('auth_address', address)
       setIsAuthenticated(true)
     } catch (error) {
       console.error('Sign in failed:', error)
-      throw error
+      setIsLoading(false)
+      // Don't re-throw, just log so button becomes clickable again
     } finally {
       setIsLoading(false)
     }
