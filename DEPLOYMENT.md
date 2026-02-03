@@ -323,7 +323,7 @@ curl -X POST http://localhost:8080/api/v1/validate/simulate \
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/validate \
-  -H "X-API-Key: erc8004_your_key_here" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"agent_id": "...", "action": {"type": "swap", "amount": "100"}}'
 ```
@@ -338,7 +338,7 @@ Here's how an AI agent would integrate with the system:
 import requests
 
 API_URL = "https://your-backend.railway.app"
-API_KEY = "erc8004_your_key"
+API_KEY = "YOUR_API_KEY"
 
 def validate_action(agent_id: str, action: dict) -> bool:
     """Check if an action is allowed before executing it."""

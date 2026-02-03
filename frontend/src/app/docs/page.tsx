@@ -321,7 +321,7 @@ export default function DocsPage() {
                       Create an API key in Settings and include it in your requests.
                     </p>
                     <div className="bg-muted rounded-lg p-4">
-                      <code className="text-sm">X-API-Key: erc8004_your_key_here</code>
+                      <code className="text-sm">X-API-Key: YOUR_API_KEY</code>
                     </div>
                   </div>
                   <div>
@@ -384,7 +384,7 @@ export default function DocsPage() {
                     <pre className="text-sm">{`import requests
 
 API_URL = "https://your-backend.railway.app"
-API_KEY = "erc8004_your_key"
+API_KEY = "YOUR_API_KEY"
 
 def validate_action(agent_id: str, action: dict) -> bool:
     """Check if an action is allowed before executing it."""
@@ -425,7 +425,7 @@ if validate_action("your-agent-uuid", {
                 <CardContent>
                   <div className="bg-muted rounded-lg p-4 overflow-x-auto">
                     <pre className="text-sm">{`const API_URL = "https://your-backend.railway.app";
-const API_KEY = "erc8004_your_key";
+const API_KEY = "YOUR_API_KEY";
 
 async function validateAction(agentId: string, action: object): Promise<boolean> {
   const response = await fetch(\`\${API_URL}/api/v1/validate\`, {
