@@ -18,7 +18,17 @@ export default function Home() {
             <Shield className="h-8 w-8 text-primary" />
             <span className="text-xl font-bold">Guardrail</span>
           </div>
-          <ConnectButton />
+          <div className="flex items-center gap-6">
+            <nav className="hidden md:flex items-center gap-4">
+              <Link href="/about" className="text-muted-foreground hover:text-foreground transition-colors">
+                About
+              </Link>
+              <Link href="/docs" className="text-muted-foreground hover:text-foreground transition-colors">
+                Docs
+              </Link>
+            </nav>
+            <ConnectButton />
+          </div>
         </div>
       </header>
 
