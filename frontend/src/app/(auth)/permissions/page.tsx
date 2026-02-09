@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { Plus, MoreVertical, Trash2, Coins, Key } from 'lucide-react'
+import Link from 'next/link'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Select from '@radix-ui/react-select'
@@ -26,12 +27,12 @@ export default function PermissionsPage() {
     queryFn: () => permissions.list(),
   })
 
-  const { data: agentsList } = useQuery({
+  const { data: agentsList, isLoading: agentsLoading } = useQuery({
     queryKey: ['agents'],
     queryFn: agents.list,
   })
 
-  const { data: policiesList } = useQuery({
+  const { data: policiesList, isLoading: policiesLoading } = useQuery({
     queryKey: ['policies'],
     queryFn: policies.list,
   })
@@ -184,7 +185,9 @@ export default function PermissionsPage() {
         </Dialog.Root>
       </div>
 
-      {activePolicies.length === 0 || activeAgents.length === 0 ? (
+      {agentsLoading || policiesLoading || isLoading ? (
+        <div className="text-center py-8">Loading...</div>
+      ) : activePolicies.length === 0 || activeAgents.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center">
             <Key className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -194,16 +197,14 @@ export default function PermissionsPage() {
             </p>
             <div className="flex justify-center gap-3">
               <Button variant="outline" asChild>
-                <a href="/agents">Manage Agents</a>
+                <Link href="/agents">Manage Agents</Link>
               </Button>
               <Button variant="outline" asChild>
-                <a href="/policies">Manage Policies</a>
+                <Link href="/policies">Manage Policies</Link>
               </Button>
             </div>
           </CardContent>
         </Card>
-      ) : isLoading ? (
-        <div className="text-center py-8">Loading...</div>
       ) : permissionsList?.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center">
