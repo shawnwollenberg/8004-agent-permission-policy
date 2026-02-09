@@ -5,6 +5,16 @@ import { SiweMessage } from 'siwe'
 import { useCallback, useEffect, useState } from 'react'
 import { auth } from '@/lib/api'
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    // Expired if exp is in the past (with 30s buffer for clock skew)
+    return payload.exp * 1000 < Date.now() - 30_000
+  } catch {
+    return true
+  }
+}
+
 export function useAuth() {
   const { address, isConnected } = useAccount()
   const { signMessageAsync } = useSignMessage()
@@ -15,13 +25,25 @@ export function useAuth() {
   useEffect(() => {
     const token = localStorage.getItem('auth_token')
     const storedAddress = localStorage.getItem('auth_address')
-    if (token && storedAddress === address) {
+    if (token && storedAddress === address && !isTokenExpired(token)) {
       setIsAuthenticated(true)
     } else {
+      if (token && isTokenExpired(token)) {
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_address')
+      }
       setIsAuthenticated(false)
     }
     setIsInitialized(true)
   }, [address])
+
+  useEffect(() => {
+    const handleExpired = () => {
+      setIsAuthenticated(false)
+    }
+    window.addEventListener('auth-expired', handleExpired)
+    return () => window.removeEventListener('auth-expired', handleExpired)
+  }, [])
 
   const signIn = useCallback(async () => {
     if (!address) {

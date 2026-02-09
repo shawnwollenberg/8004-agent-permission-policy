@@ -22,6 +22,11 @@ async function fetchApi<T>(
   })
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_address')
+      window.dispatchEvent(new Event('auth-expired'))
+    }
     const error = await response.json().catch(() => ({ error: 'Unknown error' }))
     throw new ApiError(response.status, error.error)
   }
