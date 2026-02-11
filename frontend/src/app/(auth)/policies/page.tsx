@@ -15,17 +15,28 @@ import {
   Play,
   Pause,
   Trash2,
-  Edit,
   FileCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+
+const CHAIN_OPTIONS: { id: number; name: string }[] = [
+  { id: 1, name: 'Ethereum Mainnet' },
+  { id: 11155111, name: 'Sepolia Testnet' },
+  { id: 10, name: 'Optimism' },
+  { id: 42161, name: 'Arbitrum One' },
+  { id: 8453, name: 'Base' },
+  { id: 137, name: 'Polygon' },
+]
 
 const defaultDefinition: PolicyDefinition = {
   actions: ['swap', 'transfer'],
   assets: {
     tokens: [],
     protocols: [],
+    chains: [],
   },
   constraints: {
     maxValuePerTx: '5000',
@@ -36,6 +47,7 @@ const defaultDefinition: PolicyDefinition = {
 export default function PoliciesPage() {
   const queryClient = useQueryClient()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [newPolicy, setNewPolicy] = useState({
     name: '',
     description: '',
@@ -52,6 +64,7 @@ export default function PoliciesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['policies'] })
       setIsCreateOpen(false)
+      setShowAdvanced(false)
       setNewPolicy({ name: '', description: '', definition: defaultDefinition })
     },
   })
@@ -84,6 +97,71 @@ export default function PoliciesPage() {
     }
   }
 
+  const toggleChain = (chainId: number) => {
+    const currentChains = newPolicy.definition.assets?.chains || []
+    const updated = currentChains.includes(chainId)
+      ? currentChains.filter((c) => c !== chainId)
+      : [...currentChains, chainId]
+    setNewPolicy({
+      ...newPolicy,
+      definition: {
+        ...newPolicy.definition,
+        assets: {
+          ...newPolicy.definition.assets,
+          chains: updated,
+        },
+      },
+    })
+  }
+
+  const handleCreate = () => {
+    // Clean up empty optional fields before sending
+    const def = { ...newPolicy.definition }
+
+    // Remove empty arrays from assets
+    if (def.assets) {
+      const cleanAssets: PolicyDefinition['assets'] = {}
+      if (def.assets.tokens && def.assets.tokens.length > 0 && def.assets.tokens[0] !== '') {
+        cleanAssets.tokens = def.assets.tokens.filter((t) => t !== '')
+      }
+      if (def.assets.protocols && def.assets.protocols.length > 0 && def.assets.protocols[0] !== '') {
+        cleanAssets.protocols = def.assets.protocols.filter((p) => p !== '')
+      }
+      if (def.assets.chains && def.assets.chains.length > 0) {
+        cleanAssets.chains = def.assets.chains
+      }
+      if (Object.keys(cleanAssets).length > 0) {
+        def.assets = cleanAssets
+      } else {
+        delete def.assets
+      }
+    }
+
+    // Remove empty constraint fields
+    if (def.constraints) {
+      if (!def.constraints.maxValuePerTx) delete def.constraints.maxValuePerTx
+      if (!def.constraints.maxDailyVolume) delete def.constraints.maxDailyVolume
+      if (!def.constraints.maxTxCount) delete def.constraints.maxTxCount
+    }
+
+    // Remove empty duration
+    if (def.duration) {
+      if (!def.duration.validFrom && !def.duration.validUntil) {
+        delete def.duration
+      }
+    }
+
+    createMutation.mutate({
+      name: newPolicy.name,
+      description: newPolicy.description,
+      definition: def,
+    })
+  }
+
+  const getChainName = (chainId: number) => {
+    return CHAIN_OPTIONS.find((c) => c.id === chainId)?.name || `Chain ${chainId}`
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -93,7 +171,7 @@ export default function PoliciesPage() {
             Define permission rules for your agents
           </p>
         </div>
-        <Dialog.Root open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog.Root open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) setShowAdvanced(false) }}>
           <Dialog.Trigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -102,7 +180,7 @@ export default function PoliciesPage() {
           </Dialog.Trigger>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-            <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg">
+            <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg max-h-[85vh] overflow-y-auto">
               <Dialog.Title className="text-lg font-semibold">
                 Create New Policy
               </Dialog.Title>
@@ -111,6 +189,7 @@ export default function PoliciesPage() {
               </Dialog.Description>
 
               <div className="space-y-4">
+                {/* Basic Info */}
                 <div>
                   <Label htmlFor="name">Policy Name</Label>
                   <Input
@@ -133,8 +212,10 @@ export default function PoliciesPage() {
                     placeholder="Allows swapping up to $5k per transaction"
                   />
                 </div>
+
+                {/* Actions */}
                 <div>
-                  <Label htmlFor="actions">Actions (comma-separated)</Label>
+                  <Label htmlFor="actions">Allowed Actions</Label>
                   <Input
                     id="actions"
                     value={newPolicy.definition.actions.join(', ')}
@@ -147,49 +228,220 @@ export default function PoliciesPage() {
                         },
                       })
                     }
-                    placeholder="swap, transfer"
+                    placeholder="swap, transfer, stake"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Comma-separated. Options: swap, transfer, approve, stake, unstake, deposit, withdraw, mint, burn, bridge, claim, vote, delegate, lp_add, lp_remove, borrow, repay, liquidate, or * for all
+                  </p>
                 </div>
+
+                {/* Constraints */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Constraints</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="maxValuePerTx" className="text-xs text-muted-foreground">Max Value Per Tx</Label>
+                      <Input
+                        id="maxValuePerTx"
+                        value={newPolicy.definition.constraints?.maxValuePerTx || ''}
+                        onChange={(e) =>
+                          setNewPolicy({
+                            ...newPolicy,
+                            definition: {
+                              ...newPolicy.definition,
+                              constraints: {
+                                ...newPolicy.definition.constraints,
+                                maxValuePerTx: e.target.value,
+                              },
+                            },
+                          })
+                        }
+                        placeholder="5000"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="maxDailyVolume" className="text-xs text-muted-foreground">Max Daily Volume</Label>
+                      <Input
+                        id="maxDailyVolume"
+                        value={newPolicy.definition.constraints?.maxDailyVolume || ''}
+                        onChange={(e) =>
+                          setNewPolicy({
+                            ...newPolicy,
+                            definition: {
+                              ...newPolicy.definition,
+                              constraints: {
+                                ...newPolicy.definition.constraints,
+                                maxDailyVolume: e.target.value,
+                              },
+                            },
+                          })
+                        }
+                        placeholder="50000"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="maxTxCount" className="text-xs text-muted-foreground">Max Transactions Per Day</Label>
+                    <Input
+                      id="maxTxCount"
+                      type="number"
+                      value={newPolicy.definition.constraints?.maxTxCount || ''}
+                      onChange={(e) =>
+                        setNewPolicy({
+                          ...newPolicy,
+                          definition: {
+                            ...newPolicy.definition,
+                            constraints: {
+                              ...newPolicy.definition.constraints,
+                              maxTxCount: e.target.value ? parseInt(e.target.value) : undefined,
+                            },
+                          },
+                        })
+                      }
+                      placeholder="100"
+                    />
+                  </div>
+                </div>
+
+                {/* Allowed Tokens */}
                 <div>
-                  <Label htmlFor="maxValuePerTx">Max Value Per Transaction</Label>
+                  <Label htmlFor="tokens">Allowed Token Addresses</Label>
                   <Input
-                    id="maxValuePerTx"
-                    value={newPolicy.definition.constraints?.maxValuePerTx || ''}
+                    id="tokens"
+                    value={newPolicy.definition.assets?.tokens?.join(', ') || ''}
                     onChange={(e) =>
                       setNewPolicy({
                         ...newPolicy,
                         definition: {
                           ...newPolicy.definition,
-                          constraints: {
-                            ...newPolicy.definition.constraints,
-                            maxValuePerTx: e.target.value,
+                          assets: {
+                            ...newPolicy.definition.assets,
+                            tokens: e.target.value ? e.target.value.split(',').map((t) => t.trim()) : [],
                           },
                         },
                       })
                     }
-                    placeholder="5000"
+                    placeholder="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Comma-separated contract addresses. Leave empty to allow all tokens.
+                  </p>
                 </div>
+
+                {/* Allowed Protocols */}
                 <div>
-                  <Label htmlFor="maxDailyVolume">Max Daily Volume</Label>
+                  <Label htmlFor="protocols">Allowed Protocols</Label>
                   <Input
-                    id="maxDailyVolume"
-                    value={newPolicy.definition.constraints?.maxDailyVolume || ''}
+                    id="protocols"
+                    value={newPolicy.definition.assets?.protocols?.join(', ') || ''}
                     onChange={(e) =>
                       setNewPolicy({
                         ...newPolicy,
                         definition: {
                           ...newPolicy.definition,
-                          constraints: {
-                            ...newPolicy.definition.constraints,
-                            maxDailyVolume: e.target.value,
+                          assets: {
+                            ...newPolicy.definition.assets,
+                            protocols: e.target.value ? e.target.value.split(',').map((p) => p.trim()) : [],
                           },
                         },
                       })
                     }
-                    placeholder="50000"
+                    placeholder="uniswap-v3, aave-v3"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Comma-separated protocol names or addresses. Leave empty to allow all protocols.
+                  </p>
                 </div>
+
+                {/* Allowed Chains */}
+                <div>
+                  <Label className="mb-2 block">Allowed Chains</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {CHAIN_OPTIONS.map((chain) => {
+                      const selected = newPolicy.definition.assets?.chains?.includes(chain.id) || false
+                      return (
+                        <button
+                          key={chain.id}
+                          type="button"
+                          onClick={() => toggleChain(chain.id)}
+                          className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
+                            selected
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-muted text-muted-foreground hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          {chain.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select none to allow all chains. Restricts which chains the agent can operate on or bridge to.
+                  </p>
+                </div>
+
+                {/* Advanced: Validity Period */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    Advanced Options
+                  </button>
+                </div>
+
+                {showAdvanced && (
+                  <div className="space-y-3 rounded-md border p-3">
+                    <Label className="text-sm font-medium">Validity Period</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="validFrom" className="text-xs text-muted-foreground">Valid From</Label>
+                        <Input
+                          id="validFrom"
+                          type="datetime-local"
+                          value={newPolicy.definition.duration?.validFrom || ''}
+                          onChange={(e) =>
+                            setNewPolicy({
+                              ...newPolicy,
+                              definition: {
+                                ...newPolicy.definition,
+                                duration: {
+                                  ...newPolicy.definition.duration,
+                                  validFrom: e.target.value || undefined,
+                                },
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="validUntil" className="text-xs text-muted-foreground">Valid Until</Label>
+                        <Input
+                          id="validUntil"
+                          type="datetime-local"
+                          value={newPolicy.definition.duration?.validUntil || ''}
+                          onChange={(e) =>
+                            setNewPolicy({
+                              ...newPolicy,
+                              definition: {
+                                ...newPolicy.definition,
+                                duration: {
+                                  ...newPolicy.definition.duration,
+                                  validUntil: e.target.value || undefined,
+                                },
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty for no time restrictions. The policy will be valid indefinitely.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 flex justify-end gap-3">
@@ -197,7 +449,7 @@ export default function PoliciesPage() {
                   <Button variant="outline">Cancel</Button>
                 </Dialog.Close>
                 <Button
-                  onClick={() => createMutation.mutate(newPolicy)}
+                  onClick={handleCreate}
                   disabled={!newPolicy.name || createMutation.isPending}
                 >
                   {createMutation.isPending ? 'Creating...' : 'Create Policy'}
@@ -293,12 +545,59 @@ export default function PoliciesPage() {
                       <p className="text-xs text-muted-foreground mb-1">
                         Constraints
                       </p>
-                      <p className="text-sm">
-                        Max/tx: ${policy.definition.constraints.maxValuePerTx || '-'}
-                      </p>
-                      <p className="text-sm">
-                        Max/day: ${policy.definition.constraints.maxDailyVolume || '-'}
-                      </p>
+                      <div className="text-sm space-y-0.5">
+                        {policy.definition.constraints.maxValuePerTx && (
+                          <p>Max/tx: ${policy.definition.constraints.maxValuePerTx}</p>
+                        )}
+                        {policy.definition.constraints.maxDailyVolume && (
+                          <p>Max/day: ${policy.definition.constraints.maxDailyVolume}</p>
+                        )}
+                        {policy.definition.constraints.maxTxCount && (
+                          <p>Max txs/day: {policy.definition.constraints.maxTxCount}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {policy.definition.assets?.tokens && policy.definition.assets.tokens.length > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Tokens</p>
+                      <div className="flex flex-wrap gap-1">
+                        {policy.definition.assets.tokens.map((token) => (
+                          <Badge key={token} variant="outline" className="font-mono text-[10px]">
+                            {token.length > 10 ? `${token.slice(0, 6)}...${token.slice(-4)}` : token}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {policy.definition.assets?.protocols && policy.definition.assets.protocols.length > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Protocols</p>
+                      <div className="flex flex-wrap gap-1">
+                        {policy.definition.assets.protocols.map((protocol) => (
+                          <Badge key={protocol} variant="outline">
+                            {protocol}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {policy.definition.assets?.chains && policy.definition.assets.chains.length > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Chains</p>
+                      <div className="flex flex-wrap gap-1">
+                        {policy.definition.assets.chains.map((chainId) => (
+                          <Badge key={chainId} variant="outline">
+                            {getChainName(chainId)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {policy.definition.duration?.validUntil && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Expires</p>
+                      <p className="text-sm">{formatDate(policy.definition.duration.validUntil)}</p>
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
