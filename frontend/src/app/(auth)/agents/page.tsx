@@ -9,17 +9,22 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatDate, formatAddress } from '@/lib/utils'
-import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { useAccount } from 'wagmi'
 
 export default function AgentsPage() {
   const queryClient = useQueryClient()
+  const { address } = useAccount()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
+  const [upgradeAgentId, setUpgradeAgentId] = useState<string | null>(null)
   const [newAgent, setNewAgent] = useState({
     name: '',
     description: '',
     agent_address: '',
+    wallet_type: 'eoa' as 'eoa' | 'smart_account',
   })
 
   const { data: agentsList, isLoading } = useQuery({
@@ -32,7 +37,7 @@ export default function AgentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       setIsCreateOpen(false)
-      setNewAgent({ name: '', description: '', agent_address: '' })
+      setNewAgent({ name: '', description: '', agent_address: '', wallet_type: 'eoa' })
     },
   })
 
@@ -46,6 +51,15 @@ export default function AgentsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
   })
 
+  const upgradeMutation = useMutation({
+    mutationFn: (id: string) => agents.upgradeToSmartAccount(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      setIsUpgradeOpen(false)
+      setUpgradeAgentId(null)
+    },
+  })
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -57,6 +71,33 @@ export default function AgentsPage() {
       default:
         return <Badge variant="outline">{status}</Badge>
     }
+  }
+
+  const getEnforcementBadge = (agent: Agent) => {
+    if (agent.enforcement_level === 'enforced') {
+      return (
+        <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">
+          <ShieldCheck className="mr-1 h-3 w-3" />
+          Enforced
+        </Badge>
+      )
+    }
+    return (
+      <Badge variant="outline" className="border-amber-500 text-amber-600">
+        <Shield className="mr-1 h-3 w-3" />
+        Advisory
+      </Badge>
+    )
+  }
+
+  const handleCreate = () => {
+    const data: { name: string; description?: string; agent_address?: string; wallet_type?: string } = {
+      name: newAgent.name,
+      wallet_type: newAgent.wallet_type,
+    }
+    if (newAgent.description) data.description = newAgent.description
+    if (newAgent.agent_address) data.agent_address = newAgent.agent_address
+    createMutation.mutate(data)
   }
 
   return (
@@ -86,6 +127,48 @@ export default function AgentsPage() {
               </Dialog.Description>
 
               <div className="space-y-4">
+                {/* Wallet Type Selector */}
+                <div>
+                  <Label className="mb-2 block">Wallet Type</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setNewAgent({ ...newAgent, wallet_type: 'eoa' })}
+                      className={`rounded-lg border-2 p-3 text-left transition-colors ${
+                        newAgent.wallet_type === 'eoa'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-muted hover:border-muted-foreground/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Shield className="h-4 w-4 text-amber-500" />
+                        <span className="font-medium text-sm">EOA Wallet</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Monitoring + Alerts (Advisory)
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewAgent({ ...newAgent, wallet_type: 'smart_account', agent_address: address || '' })}
+                      className={`rounded-lg border-2 p-3 text-left transition-colors ${
+                        newAgent.wallet_type === 'smart_account'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-muted hover:border-muted-foreground/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                        <span className="font-medium text-sm">Smart Account</span>
+                        <Badge variant="secondary" className="text-[10px] px-1 py-0">Recommended</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Enforcement + Monitoring (Guaranteed)
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <Label htmlFor="name">Agent Name</Label>
                   <Input
@@ -110,7 +193,7 @@ export default function AgentsPage() {
                 </div>
                 <div>
                   <Label htmlFor="agent_address">
-                    Agent Address (optional)
+                    {newAgent.wallet_type === 'smart_account' ? 'Signer Address' : 'Agent Address'} (optional)
                   </Label>
                   <Input
                     id="agent_address"
@@ -121,9 +204,20 @@ export default function AgentsPage() {
                     placeholder="0x..."
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    The Ethereum address the agent will use for transactions
+                    {newAgent.wallet_type === 'smart_account'
+                      ? 'The EOA that will sign transactions. A new smart account will be deployed.'
+                      : 'The Ethereum address the agent will use for transactions'}
                   </p>
                 </div>
+
+                {newAgent.wallet_type === 'smart_account' && (
+                  <div className="rounded-md bg-muted p-3">
+                    <p className="text-xs text-muted-foreground">
+                      A new smart account will be deployed for this agent. Policies will be enforced on-chain
+                      — transactions that violate policy will revert before execution.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 flex justify-end gap-3">
@@ -131,7 +225,7 @@ export default function AgentsPage() {
                   <Button variant="outline">Cancel</Button>
                 </Dialog.Close>
                 <Button
-                  onClick={() => createMutation.mutate(newAgent)}
+                  onClick={handleCreate}
                   disabled={!newAgent.name || createMutation.isPending}
                 >
                   {createMutation.isPending ? 'Registering...' : 'Register Agent'}
@@ -141,6 +235,46 @@ export default function AgentsPage() {
           </Dialog.Portal>
         </Dialog.Root>
       </div>
+
+      {/* Upgrade Confirmation Dialog */}
+      <Dialog.Root open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg">
+            <Dialog.Title className="text-lg font-semibold">
+              Upgrade to Enforced Smart Account
+            </Dialog.Title>
+            <Dialog.Description className="text-sm text-muted-foreground mb-4">
+              This will upgrade the agent to use an on-chain enforced smart account.
+            </Dialog.Description>
+            <div className="space-y-3 mb-6">
+              <div className="rounded-md bg-muted p-3 text-sm space-y-2">
+                <p>This upgrade will:</p>
+                <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                  <li>Deploy a new smart account controlled by the current EOA</li>
+                  <li>The existing EOA becomes the signer for the smart account</li>
+                  <li>All policies will be enforced on-chain going forward</li>
+                  <li>Transactions violating policy will revert before execution</li>
+                </ul>
+              </div>
+              <div className="rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm text-amber-700 dark:text-amber-400">
+                This is a one-way upgrade. You cannot downgrade back to advisory mode.
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Dialog.Close asChild>
+                <Button variant="outline">Cancel</Button>
+              </Dialog.Close>
+              <Button
+                onClick={() => upgradeAgentId && upgradeMutation.mutate(upgradeAgentId)}
+                disabled={upgradeMutation.isPending}
+              >
+                {upgradeMutation.isPending ? 'Upgrading...' : 'Confirm Upgrade'}
+              </Button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       {isLoading ? (
         <div className="text-center py-8">Loading...</div>
@@ -179,7 +313,7 @@ export default function AgentsPage() {
                     </Button>
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Portal>
-                    <DropdownMenu.Content className="min-w-[160px] rounded-md bg-popover p-1 shadow-md">
+                    <DropdownMenu.Content className="min-w-[200px] rounded-md bg-popover p-1 shadow-md">
                       {!agent.onchain_registry_id && (
                         <DropdownMenu.Item
                           className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
@@ -189,6 +323,18 @@ export default function AgentsPage() {
                         >
                           <LinkIcon className="h-4 w-4" />
                           Register On-chain
+                        </DropdownMenu.Item>
+                      )}
+                      {agent.wallet_type === 'eoa' && (
+                        <DropdownMenu.Item
+                          className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
+                          onClick={() => {
+                            setUpgradeAgentId(agent.id)
+                            setIsUpgradeOpen(true)
+                          }}
+                        >
+                          <ArrowUpCircle className="h-4 w-4" />
+                          Upgrade to Enforced Smart Account
                         </DropdownMenu.Item>
                       )}
                       <DropdownMenu.Item
@@ -204,17 +350,28 @@ export default function AgentsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {getStatusBadge(agent.status)}
+                    {getEnforcementBadge(agent)}
                     {agent.onchain_registry_id && (
                       <Badge variant="outline">On-chain</Badge>
                     )}
                   </div>
-                  {agent.agent_address && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Address</p>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {agent.wallet_type === 'smart_account' ? 'Smart Account' : 'EOA Wallet'}
+                    </p>
+                    {agent.agent_address && (
                       <p className="text-sm font-mono">
                         {formatAddress(agent.agent_address)}
+                      </p>
+                    )}
+                  </div>
+                  {agent.wallet_type === 'smart_account' && agent.smart_account_address && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Signer</p>
+                      <p className="text-sm font-mono">
+                        {formatAddress(agent.agent_address || '')}
                       </p>
                     </div>
                   )}

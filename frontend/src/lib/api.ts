@@ -57,21 +57,47 @@ export interface Agent {
   agent_address?: string
   onchain_registry_id?: string
   status: string
+  wallet_type: 'eoa' | 'smart_account'
+  enforcement_level: 'advisory' | 'enforced'
+  smart_account_address?: string
   created_at: string
   updated_at: string
   onchain_registered_at?: string
 }
 
+export interface SmartAccount {
+  id: string
+  agent_id: string
+  wallet_id: string
+  account_address: string
+  factory_address: string
+  signer_address: string
+  salt: string
+  deployed: boolean
+  deploy_tx_hash?: string
+  entrypoint_address: string
+  chain_id: number
+  created_at: string
+  updated_at: string
+  deployed_at?: string
+}
+
 export const agents = {
   list: () => fetchApi<Agent[]>('/api/v1/agents'),
   get: (id: string) => fetchApi<Agent>(`/api/v1/agents/${id}`),
-  create: (data: { name: string; description?: string; agent_address?: string }) =>
+  create: (data: { name: string; description?: string; agent_address?: string; wallet_type?: string }) =>
     fetchApi<Agent>('/api/v1/agents', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<Agent>) =>
     fetchApi<Agent>(`/api/v1/agents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => fetchApi<void>(`/api/v1/agents/${id}`, { method: 'DELETE' }),
   registerOnchain: (id: string) =>
     fetchApi<Agent>(`/api/v1/agents/${id}/register-onchain`, { method: 'POST' }),
+  deploySmartAccount: (id: string, data: { signer_address: string }) =>
+    fetchApi<SmartAccount>(`/api/v1/agents/${id}/deploy-smart-account`, { method: 'POST', body: JSON.stringify(data) }),
+  getSmartAccount: (id: string) =>
+    fetchApi<SmartAccount>(`/api/v1/agents/${id}/smart-account`),
+  upgradeToSmartAccount: (id: string) =>
+    fetchApi<SmartAccount>(`/api/v1/agents/${id}/upgrade-to-smart-account`, { method: 'POST' }),
 }
 
 // Policies

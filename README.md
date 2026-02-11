@@ -2,7 +2,7 @@
 
 Permission, policy, and audit layer for AI agents. Safely authorize what your agents can do on-chain.
 
-Built on the ERC-8004 standard.
+Built on the ERC-8004 standard with ERC-4337 smart account enforcement.
 
 ## Architecture
 
@@ -12,6 +12,15 @@ erc8004-policy-saas/
 ├── contracts/        # Solidity contracts (Foundry)
 └── frontend/         # Next.js 15 dashboard
 ```
+
+### Enforcement Tiers
+
+Agents operate in one of two enforcement modes:
+
+| Tier | Wallet Type | Enforcement | Description |
+|------|------------|-------------|-------------|
+| **Advisory** | EOA | Off-chain only | Validation API logs and alerts, but cannot prevent on-chain execution |
+| **Enforced** | ERC-4337 Smart Account | On-chain + off-chain | Smart account calls `PermissionEnforcer` during `validateUserOp` — violating transactions revert before execution |
 
 ## Quick Start
 
@@ -63,9 +72,12 @@ npm run dev
 - `POST /api/v1/auth/verify` - Verify signature and get JWT
 
 ### Agents
-- `POST /api/v1/agents` - Register agent
+- `POST /api/v1/agents` - Register agent (supports `wallet_type`: `eoa` or `smart_account`)
 - `GET /api/v1/agents` - List agents
 - `POST /api/v1/agents/{id}/register-onchain` - Register on ERC-8004
+- `POST /api/v1/agents/{id}/deploy-smart-account` - Deploy ERC-4337 smart account
+- `GET /api/v1/agents/{id}/smart-account` - Get smart account details
+- `POST /api/v1/agents/{id}/upgrade-to-smart-account` - Upgrade EOA agent to enforced smart account (one-way)
 
 ### Policies
 - `POST /api/v1/policies` - Create policy
@@ -78,7 +90,7 @@ npm run dev
 - `POST /api/v1/permissions/{id}/mint` - Mint on-chain
 
 ### Validation (Core Product)
-- `POST /api/v1/validate` - Validate an action
+- `POST /api/v1/validate` - Validate an action (returns `enforcement_level`, `wallet_type`, `onchain_enforced`)
 - `POST /api/v1/validate/batch` - Batch validation
 - `POST /api/v1/validate/simulate` - Simulate without recording
 
@@ -87,7 +99,9 @@ npm run dev
 Deployed on Sepolia:
 - `IdentityRegistry` - Agent identity management
 - `PolicyRegistry` - On-chain policy storage
-- `PermissionEnforcer` - Action validation
+- `PermissionEnforcer` - Action validation with protocol and chain constraints
+- `AgentAccountFactory` - CREATE2 factory for deterministic smart account deployment
+- `AgentSmartAccount` - ERC-4337 account that enforces permissions in `validateUserOp`
 
 ### Build & Test
 
@@ -110,7 +124,8 @@ forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC --broadcast
   "actions": ["swap", "transfer"],
   "assets": {
     "tokens": ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"],
-    "protocols": ["uniswap-v3"]
+    "protocols": ["uniswap-v3"],
+    "chains": [1, 11155111]
   },
   "constraints": {
     "maxValuePerTx": "5000",

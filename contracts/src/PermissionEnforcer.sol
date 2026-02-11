@@ -31,6 +31,8 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
         uint256 maxTxCount;
         bytes32[] allowedActions;
         address[] allowedTokens;
+        address[] allowedProtocols;
+        uint256[] allowedChains;
     }
 
     // permissionId => constraints
@@ -46,6 +48,8 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
     error ConstraintViolated(string reason);
     error ActionNotAllowed();
     error TokenNotAllowed();
+    error ProtocolNotAllowed();
+    error ChainNotAllowed();
     error ValueExceedsLimit();
     error DailyVolumeExceeded();
     error TxCountExceeded();
@@ -63,6 +67,37 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
      * @param maxTxCount Maximum transaction count per day
      * @param allowedActions Array of allowed action type hashes
      * @param allowedTokens Array of allowed token addresses
+     * @param allowedProtocols Array of allowed protocol addresses
+     * @param allowedChains Array of allowed chain IDs
+     */
+    function setConstraints(
+        bytes32 permissionId,
+        uint256 maxValuePerTx,
+        uint256 maxDailyVolume,
+        uint256 maxTxCount,
+        bytes32[] calldata allowedActions,
+        address[] calldata allowedTokens,
+        address[] calldata allowedProtocols,
+        uint256[] calldata allowedChains
+    ) external {
+        PolicyRegistry.Permission memory perm = policyRegistry.getPermission(permissionId);
+        require(perm.grantor == msg.sender, "Not permission grantor");
+
+        permissionConstraints[permissionId] = Constraints({
+            maxValuePerTx: maxValuePerTx,
+            maxDailyVolume: maxDailyVolume,
+            maxTxCount: maxTxCount,
+            allowedActions: allowedActions,
+            allowedTokens: allowedTokens,
+            allowedProtocols: allowedProtocols,
+            allowedChains: allowedChains
+        });
+
+        emit ConstraintsSet(permissionId);
+    }
+
+    /**
+     * @notice Set constraints (backward compatible - no protocols/chains)
      */
     function setConstraints(
         bytes32 permissionId,
@@ -75,12 +110,17 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
         PolicyRegistry.Permission memory perm = policyRegistry.getPermission(permissionId);
         require(perm.grantor == msg.sender, "Not permission grantor");
 
+        address[] memory emptyProtocols = new address[](0);
+        uint256[] memory emptyChains = new uint256[](0);
+
         permissionConstraints[permissionId] = Constraints({
             maxValuePerTx: maxValuePerTx,
             maxDailyVolume: maxDailyVolume,
             maxTxCount: maxTxCount,
             allowedActions: allowedActions,
-            allowedTokens: allowedTokens
+            allowedTokens: allowedTokens,
+            allowedProtocols: emptyProtocols,
+            allowedChains: emptyChains
         });
 
         emit ConstraintsSet(permissionId);
@@ -157,6 +197,9 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
 
     /**
      * @notice Check constraints for a permission
+     * @dev Supports two actionData formats:
+     *   - Legacy (64 bytes): abi.encode(uint256 value, address token)
+     *   - Extended (128 bytes): abi.encode(uint256 value, address token, address protocol, uint256 chainId)
      */
     function _checkConstraints(
         bytes32 permissionId,
@@ -171,7 +214,9 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
             constraints.maxDailyVolume == 0 &&
             constraints.maxTxCount == 0 &&
             constraints.allowedActions.length == 0 &&
-            constraints.allowedTokens.length == 0) {
+            constraints.allowedTokens.length == 0 &&
+            constraints.allowedProtocols.length == 0 &&
+            constraints.allowedChains.length == 0) {
             return true;
         }
 
@@ -208,6 +253,37 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
                     }
                 }
                 if (!tokenAllowed) return false;
+            }
+
+            // Extended format: check protocol and chain constraints
+            if (actionData.length >= 128) {
+                (, , address protocol, uint256 chainId) = abi.decode(actionData, (uint256, address, address, uint256));
+
+                // Check allowed protocols
+                if (constraints.allowedProtocols.length > 0) {
+                    bool protocolAllowed = false;
+                    for (uint256 i = 0; i < constraints.allowedProtocols.length; i++) {
+                        if (constraints.allowedProtocols[i] == protocol ||
+                            constraints.allowedProtocols[i] == address(0)) { // address(0) = any protocol
+                            protocolAllowed = true;
+                            break;
+                        }
+                    }
+                    if (!protocolAllowed) return false;
+                }
+
+                // Check allowed chains
+                if (constraints.allowedChains.length > 0) {
+                    bool chainAllowed = false;
+                    for (uint256 i = 0; i < constraints.allowedChains.length; i++) {
+                        if (constraints.allowedChains[i] == chainId ||
+                            constraints.allowedChains[i] == 0) { // 0 = any chain
+                            chainAllowed = true;
+                            break;
+                        }
+                    }
+                    if (!chainAllowed) return false;
+                }
             }
 
             // Check daily volume

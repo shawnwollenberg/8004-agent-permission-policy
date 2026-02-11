@@ -102,8 +102,14 @@ The backend includes Railway configuration files (`railway.toml` and `nixpacks.t
    CORS_ORIGIN=https://your-frontend-domain.vercel.app
    RPC_URL=https://sepolia.infura.io/v3/<your-key>
    CHAIN_ID=11155111
+   IDENTITY_REGISTRY_ADDRESS=0x...
+   POLICY_REGISTRY_ADDRESS=0x...
+   PERMISSION_ENFORCER_ADDRESS=0x...
+   SMART_ACCOUNT_FACTORY_ADDRESS=0x...
+   ENTRY_POINT_ADDRESS=0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
    ```
    Note: `DATABASE_URL` is automatically set when you add a PostgreSQL database.
+   The `SMART_ACCOUNT_FACTORY_ADDRESS` and `PERMISSION_ENFORCER_ADDRESS` are required for ERC-4337 smart account enforcement. Without them, agents default to advisory (EOA) mode.
 
 6. **Run migrations** (after first deployment):
    ```bash
@@ -186,6 +192,8 @@ The backend includes Railway configuration files (`railway.toml` and `nixpacks.t
    ```
    IDENTITY_REGISTRY_ADDRESS=0x...
    POLICY_REGISTRY_ADDRESS=0x...
+   PERMISSION_ENFORCER_ADDRESS=0x...
+   SMART_ACCOUNT_FACTORY_ADDRESS=0x...
    ```
 
 ---
@@ -203,11 +211,16 @@ The backend includes Railway configuration files (`railway.toml` and `nixpacks.t
 
 1. Navigate to **Agents** page
 2. Click **Register Agent**
-3. Fill in:
+3. Choose a wallet type:
+   - **EOA Wallet** — Advisory mode (monitoring + alerts only)
+   - **Smart Account** (Recommended) — Enforced mode (policies enforced on-chain)
+4. Fill in:
    - Name: "My Trading Bot"
    - Description: "Automated DeFi trader"
-   - Agent Address: (optional) Your bot's wallet address
-4. Click **Register Agent**
+   - Agent/Signer Address: (optional) The EOA address. For smart accounts, this becomes the signer.
+5. Click **Register Agent**
+
+For smart account agents, a new ERC-4337 smart account is deployed and policies are enforced on-chain — transactions violating policy revert before execution.
 
 ### 3. Create a Policy
 
@@ -256,8 +269,14 @@ curl -X POST http://localhost:8080/api/v1/validate \
 #   "permission_id": "...",
 #   "policy_id": "...",
 #   "constraints": {"maxValuePerTx": "5000", ...},
-#   "request_id": "..."
+#   "request_id": "...",
+#   "enforcement_level": "advisory",
+#   "wallet_type": "eoa",
+#   "onchain_enforced": false
 # }
+#
+# For smart account agents, onchain_enforced will be true and
+# enforcement_level will be "enforced".
 
 # Test with amount exceeding limit
 curl -X POST http://localhost:8080/api/v1/validate \
@@ -306,15 +325,29 @@ curl -X POST http://localhost:8080/api/v1/validate/simulate \
    - `policy.activated`
    - `permission.created`
    - `validation.request`
+   - `agent.smart_account_deployed` (if you created a smart account agent)
+   - `agent.upgraded_to_smart_account` (if you upgraded an EOA agent)
 
-### 8. Test Webhooks (Optional)
+### 8. Upgrade an EOA Agent to Smart Account (Optional)
+
+1. Navigate to **Agents** page
+2. Find an EOA agent (shown with amber "Advisory" badge)
+3. Click the menu (&#8942;) and select **Upgrade to Enforced Smart Account**
+4. Review the upgrade details — this is a one-way operation:
+   - The existing EOA becomes the signer for the new smart account
+   - All policies will be enforced on-chain going forward
+   - You cannot downgrade back to advisory mode
+5. Click **Confirm Upgrade**
+6. The agent card should now show a green "Enforced" badge
+
+### 9. Test Webhooks (Optional)
 
 1. Go to **Settings** → **Webhooks**
 2. Create a webhook pointing to https://webhook.site (free testing service)
 3. Perform actions (create agent, validate, etc.)
 4. Check webhook.site for received events
 
-### 9. Create API Key for Programmatic Access
+### 10. Create API Key for Programmatic Access
 
 1. Go to **Settings** → **API Keys**
 2. Click **Create Key**
@@ -351,6 +384,9 @@ def validate_action(agent_id: str, action: dict) -> bool:
 
     if result["allowed"]:
         print(f"Action allowed. Constraints: {result['constraints']}")
+        # For smart account agents, enforcement is also on-chain
+        if result.get("onchain_enforced"):
+            print("Note: This action is also enforced on-chain via smart account")
         return True
     else:
         print(f"Action denied: {result['reason']}")
@@ -366,6 +402,8 @@ if validate_action("agent-uuid", {
     # Execute the swap
     execute_swap(...)
 ```
+
+For **smart account agents**, even if the off-chain check passes, the on-chain `PermissionEnforcer` will independently validate the action during `validateUserOp`. This provides defense-in-depth: advisory agents rely on the SDK calling this API, while enforced agents have a second on-chain check that cannot be bypassed.
 
 ---
 
@@ -391,9 +429,17 @@ if validate_action("agent-uuid", {
 - Check PostgreSQL is running: `docker-compose ps`
 - Check DATABASE_URL is correct
 - Run migrations: `docker-compose run --rm migrate`
+- The backend retries database connections 5 times with backoff on startup
+
+### CORS errors / 502 Bad Gateway on Railway
+- A 502 means the backend process is down. Railway's reverse proxy returns 502 without CORS headers, so browsers report it as a CORS error.
+- Check Railway deployment logs for database connection failures
+- Verify `DATABASE_URL` is set and the PostgreSQL instance is running
+- Verify `CORS_ORIGIN` includes your frontend URL (supports comma-separated values)
+- The backend now includes connection retry logic to handle Railway cold starts
 
 ### Frontend auth fails
-- Ensure CORS_ORIGIN in backend matches your frontend URL
+- Ensure CORS_ORIGIN in backend matches your frontend URL (e.g. `https://your-app.vercel.app`)
 - Check browser console for errors
 - Make sure JWT_SECRET is set
 
@@ -402,6 +448,11 @@ if validate_action("agent-uuid", {
 - Verify the policy is activated (not draft)
 - Verify a permission links the agent to the policy
 - Check the action type matches the policy's allowed actions
+
+### Smart account deployment fails
+- Verify `SMART_ACCOUNT_FACTORY_ADDRESS` and `ENTRY_POINT_ADDRESS` are set in env vars
+- Check the agent is active and doesn't already have a smart account
+- Ensure the factory contract is deployed on the configured chain
 
 ### Contract deployment fails
 - Ensure you have testnet ETH

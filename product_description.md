@@ -69,25 +69,37 @@ This is where standards compliance becomes your moat.
 
 ### **3. Enforcement & Validation Layer**
 
-Two modes (important):
+Two tiers based on wallet type:
 
-**a) On-chain**
-
-- Contracts verify ERC-8004 permissions before execution
-    
-
-**b) Off-chain (much bigger early)**
+**a) Advisory (EOA Wallet)**
 
 - Agent frameworks call your API to:
-    
-    - validate intent
-        
-    - simulate constraints
-        
-    - log decisions
-        
 
-This lets you win **before full on-chain enforcement is common**.
+    - validate intent
+
+    - simulate constraints
+
+    - log decisions
+
+- Monitoring + alerts only — cannot prevent on-chain execution
+
+- This is the entry point; most agents start here
+
+
+**b) Enforced (ERC-4337 Smart Account)**
+
+- Agent operates through an ERC-4337 smart account (`AgentSmartAccount`)
+
+- `validateUserOp` calls `PermissionEnforcer` before every transaction
+
+- Violating transactions **revert before execution** — guaranteed enforcement
+
+- Off-chain validation still runs (needed for dashboards, simulation, pre-flight checks)
+
+- Upgrade from advisory to enforced is one-way (cannot downgrade)
+
+
+This lets you win **before full on-chain enforcement is common** with advisory mode, then upsell to guaranteed enforcement via smart accounts.
 
 ---
 
@@ -127,8 +139,8 @@ This quietly sets you up for **compliance + observability later**.
     
 - **Auth:** Wallet + API keys
     
-- **Contracts:** Minimal ERC-8004 reference implementation
-    
-- **Infra:** ECS or Railway early → EKS later
-    
+- **Contracts:** ERC-8004 reference implementation + ERC-4337 smart accounts
+
+- **Infra:** Railway (backend) + Vercel (frontend) early → EKS later
+
 - **SDK:** JS + Python (agents live there)

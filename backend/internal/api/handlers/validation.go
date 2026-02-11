@@ -17,12 +17,15 @@ type ValidateRequest struct {
 }
 
 type ValidateResponse struct {
-	Allowed      bool                   `json:"allowed"`
-	Reason       string                 `json:"reason,omitempty"`
-	PermissionID *uuid.UUID             `json:"permission_id,omitempty"`
-	PolicyID     *uuid.UUID             `json:"policy_id,omitempty"`
-	Constraints  map[string]interface{} `json:"constraints,omitempty"`
-	RequestID    uuid.UUID              `json:"request_id"`
+	Allowed          bool                   `json:"allowed"`
+	Reason           string                 `json:"reason,omitempty"`
+	PermissionID     *uuid.UUID             `json:"permission_id,omitempty"`
+	PolicyID         *uuid.UUID             `json:"policy_id,omitempty"`
+	Constraints      map[string]interface{} `json:"constraints,omitempty"`
+	RequestID        uuid.UUID              `json:"request_id"`
+	EnforcementLevel string                 `json:"enforcement_level"`
+	WalletType       string                 `json:"wallet_type"`
+	OnchainEnforced  bool                   `json:"onchain_enforced"`
 }
 
 func (h *Handlers) ValidateAction(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +44,18 @@ func (h *Handlers) ValidateAction(w http.ResponseWriter, r *http.Request) {
 	requestID := uuid.New()
 	startTime := time.Now()
 
+	// Look up agent's wallet type and enforcement level
+	var walletType, enforcementLevel string
+	err := h.db.QueryRow(r.Context(),
+		`SELECT wallet_type, enforcement_level FROM agents WHERE id = $1 AND wallet_id = $2`,
+		req.AgentID, userID,
+	).Scan(&walletType, &enforcementLevel)
+	if err != nil {
+		walletType = "eoa"
+		enforcementLevel = "advisory"
+	}
+
+	// Off-chain validation runs for BOTH tiers (advisory and enforced)
 	result := h.policyEngine.Validate(r.Context(), userID, req.AgentID, req.Action)
 
 	// Log the validation request
@@ -50,6 +65,8 @@ func (h *Handlers) ValidateAction(w http.ResponseWriter, r *http.Request) {
 		requestID, userID, req.AgentID, req.Action.Type, req.Action, result.Allowed, result.Reason, result.PermissionID, result.PolicyID, time.Since(startTime).Milliseconds(),
 	)
 
+	onchainEnforced := walletType == "smart_account" && enforcementLevel == "enforced"
+
 	h.auditLogger.Log(r.Context(), audit.Event{
 		WalletID:     userID,
 		AgentID:      &req.AgentID,
@@ -57,20 +74,25 @@ func (h *Handlers) ValidateAction(w http.ResponseWriter, r *http.Request) {
 		PermissionID: result.PermissionID,
 		EventType:    "validation.request",
 		Details: map[string]interface{}{
-			"action":     req.Action,
-			"allowed":    result.Allowed,
-			"reason":     result.Reason,
-			"request_id": requestID,
+			"action":            req.Action,
+			"allowed":           result.Allowed,
+			"reason":            result.Reason,
+			"request_id":        requestID,
+			"enforcement_level": enforcementLevel,
+			"onchain_enforced":  onchainEnforced,
 		},
 	})
 
 	respondJSON(w, http.StatusOK, ValidateResponse{
-		Allowed:      result.Allowed,
-		Reason:       result.Reason,
-		PermissionID: result.PermissionID,
-		PolicyID:     result.PolicyID,
-		Constraints:  result.Constraints,
-		RequestID:    requestID,
+		Allowed:          result.Allowed,
+		Reason:           result.Reason,
+		PermissionID:     result.PermissionID,
+		PolicyID:         result.PolicyID,
+		Constraints:      result.Constraints,
+		RequestID:        requestID,
+		EnforcementLevel: enforcementLevel,
+		WalletType:       walletType,
+		OnchainEnforced:  onchainEnforced,
 	})
 }
 

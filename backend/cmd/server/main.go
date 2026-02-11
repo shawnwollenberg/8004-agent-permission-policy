@@ -30,27 +30,13 @@ func main() {
 	cfg := config.Load()
 	logger.Info().Str("environment", cfg.Server.Environment).Strs("cors_origins", cfg.Server.AllowOrigins).Msg("starting server")
 
-	// Connect to database
+	// Connect to database with retries
 	ctx := context.Background()
-	poolConfig, err := pgxpool.ParseConfig(cfg.Database.URL)
+	db, err := connectWithRetry(ctx, cfg, logger)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to parse database URL")
-	}
-
-	poolConfig.MaxConns = int32(cfg.Database.MaxOpenConns)
-	poolConfig.MinConns = int32(cfg.Database.MaxIdleConns)
-	poolConfig.MaxConnLifetime = cfg.Database.ConnMaxLifetime
-
-	db, err := pgxpool.NewWithConfig(ctx, poolConfig)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to connect to database")
+		logger.Fatal().Err(err).Msg("failed to connect to database after retries")
 	}
 	defer db.Close()
-
-	// Verify database connection
-	if err := db.Ping(ctx); err != nil {
-		logger.Fatal().Err(err).Msg("failed to ping database")
-	}
 	logger.Info().Msg("connected to database")
 
 	// Create server
@@ -89,4 +75,37 @@ func main() {
 	}
 
 	logger.Info().Msg("server stopped")
+}
+
+func connectWithRetry(ctx context.Context, cfg *config.Config, logger zerolog.Logger) (*pgxpool.Pool, error) {
+	poolConfig, err := pgxpool.ParseConfig(cfg.Database.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	poolConfig.MaxConns = int32(cfg.Database.MaxOpenConns)
+	poolConfig.MinConns = int32(cfg.Database.MaxIdleConns)
+	poolConfig.MaxConnLifetime = cfg.Database.ConnMaxLifetime
+
+	var db *pgxpool.Pool
+	maxRetries := 5
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		db, err = pgxpool.NewWithConfig(ctx, poolConfig)
+		if err != nil {
+			logger.Warn().Err(err).Int("attempt", attempt).Int("max", maxRetries).Msg("failed to create database pool, retrying...")
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+			continue
+		}
+
+		if err = db.Ping(ctx); err != nil {
+			db.Close()
+			logger.Warn().Err(err).Int("attempt", attempt).Int("max", maxRetries).Msg("failed to ping database, retrying...")
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+			continue
+		}
+
+		return db, nil
+	}
+
+	return nil, err
 }

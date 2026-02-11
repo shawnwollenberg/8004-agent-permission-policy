@@ -82,6 +82,9 @@ func (s *Server) setupRoutes() {
 				r.Patch("/{id}", s.handlers.UpdateAgent)
 				r.Delete("/{id}", s.handlers.DeleteAgent)
 				r.Post("/{id}/register-onchain", s.handlers.RegisterAgentOnchain)
+				r.Post("/{id}/deploy-smart-account", s.handlers.DeploySmartAccount)
+				r.Get("/{id}/smart-account", s.handlers.GetSmartAccount)
+				r.Post("/{id}/upgrade-to-smart-account", s.handlers.UpgradeToSmartAccount)
 			})
 
 			// Policies

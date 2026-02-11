@@ -28,10 +28,13 @@ type DatabaseConfig struct {
 }
 
 type BlockchainConfig struct {
-	RPCURL                  string
-	ChainID                 int64
-	IdentityRegistryAddress string
-	PolicyRegistryAddress   string
+	RPCURL                       string
+	ChainID                      int64
+	IdentityRegistryAddress      string
+	PolicyRegistryAddress        string
+	SmartAccountFactoryAddress   string
+	EntryPointAddress            string
+	PermissionEnforcerAddress    string
 }
 
 type JWTConfig struct {
@@ -63,10 +66,13 @@ func Load() *Config {
 			ConnMaxLifetime: time.Duration(getEnvInt("DB_CONN_MAX_LIFETIME_MINS", 5)) * time.Minute,
 		},
 		Blockchain: BlockchainConfig{
-			RPCURL:                  getEnv("RPC_URL", "http://localhost:8545"),
-			ChainID:                 int64(getEnvInt("CHAIN_ID", 31337)),
-			IdentityRegistryAddress: getEnv("IDENTITY_REGISTRY_ADDRESS", ""),
-			PolicyRegistryAddress:   getEnv("POLICY_REGISTRY_ADDRESS", ""),
+			RPCURL:                       getEnv("RPC_URL", "http://localhost:8545"),
+			ChainID:                      int64(getEnvInt("CHAIN_ID", 31337)),
+			IdentityRegistryAddress:      getEnv("IDENTITY_REGISTRY_ADDRESS", ""),
+			PolicyRegistryAddress:        getEnv("POLICY_REGISTRY_ADDRESS", ""),
+			SmartAccountFactoryAddress:   getEnv("SMART_ACCOUNT_FACTORY_ADDRESS", ""),
+			EntryPointAddress:            getEnv("ENTRY_POINT_ADDRESS", "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"),
+			PermissionEnforcerAddress:    getEnv("PERMISSION_ENFORCER_ADDRESS", ""),
 		},
 		JWT: JWTConfig{
 			Secret:     getEnv("JWT_SECRET", "your-secret-key-change-in-production"),

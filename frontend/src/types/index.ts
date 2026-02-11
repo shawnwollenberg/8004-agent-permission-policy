@@ -6,9 +6,29 @@ export interface Agent {
   agent_address?: string
   onchain_registry_id?: string
   status: 'active' | 'inactive' | 'deleted'
+  wallet_type: 'eoa' | 'smart_account'
+  enforcement_level: 'advisory' | 'enforced'
+  smart_account_address?: string
   created_at: string
   updated_at: string
   onchain_registered_at?: string
+}
+
+export interface SmartAccount {
+  id: string
+  agent_id: string
+  wallet_id: string
+  account_address: string
+  factory_address: string
+  signer_address: string
+  salt: string
+  deployed: boolean
+  deploy_tx_hash?: string
+  entrypoint_address: string
+  chain_id: number
+  created_at: string
+  updated_at: string
+  deployed_at?: string
 }
 
 export interface PolicyDefinition {
