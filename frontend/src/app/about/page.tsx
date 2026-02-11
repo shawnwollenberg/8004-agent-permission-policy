@@ -260,9 +260,9 @@ else:
                   </div>
                   <h2 className="text-3xl font-bold mb-4">Built on ERC-8004</h2>
                   <p className="text-muted-foreground mb-6">
-                    Guardrail implements the ERC-8004 standard for AI agent authorization.
-                    This means your permissions can be enforced cryptographically on-chain,
-                    not just through API checks.
+                    Guardrail implements the ERC-8004 standard for AI agent authorization
+                    with ERC-4337 smart account enforcement. Policies are enforced both
+                    off-chain (API validation) and on-chain (smart account transaction gating).
                   </p>
                   <ul className="space-y-3">
                     <li className="flex items-center gap-3">
@@ -272,6 +272,10 @@ else:
                     <li className="flex items-center gap-3">
                       <CheckCircle className="h-5 w-5 text-green-500" />
                       <span>On-chain policy storage and enforcement</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span>ERC-4337 smart accounts with policy-gated transactions</span>
                     </li>
                     <li className="flex items-center gap-3">
                       <CheckCircle className="h-5 w-5 text-green-500" />
@@ -301,7 +305,13 @@ else:
                     <div>
                       <p className="text-muted-foreground mb-1">PermissionEnforcer</p>
                       <code className="text-xs bg-background px-2 py-1 rounded">
-                        0xbF63Fa97cfBba99647B410f205730d63d831061c
+                        0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3
+                      </code>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1">AgentAccountFactory</p>
+                      <code className="text-xs bg-background px-2 py-1 rounded">
+                        0x28bd44158F7A824eB20330D761035cCb7D1D2AD5
                       </code>
                     </div>
                   </div>
@@ -311,8 +321,88 @@ else:
           </div>
         </section>
 
-        {/* Use Cases */}
+        {/* Enforcement Tiers */}
         <section className="bg-muted/50 py-20">
+          <div className="container mx-auto px-4">
+            <div className="max-w-3xl mx-auto text-center mb-12">
+              <h2 className="text-3xl font-bold mb-4">Two Enforcement Tiers</h2>
+              <p className="text-lg text-muted-foreground">
+                Choose the right level of enforcement for your agents. Start with advisory
+                monitoring and upgrade to guaranteed on-chain enforcement when ready.
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+              <Card className="bg-background border-2 border-amber-500/30">
+                <CardHeader>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Shield className="h-8 w-8 text-amber-500" />
+                    <CardTitle>Advisory Mode</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Agent uses a standard EOA wallet. Guardrail validates actions via API
+                    and logs everything, but cannot prevent on-chain execution.
+                  </p>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Off-chain validation API
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Monitoring and alerts
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Full audit trail
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Quick setup — no smart contract needed
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-background border-2 border-emerald-500/30">
+                <CardHeader>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Lock className="h-8 w-8 text-emerald-500" />
+                    <CardTitle>Enforced Mode</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Agent operates through an ERC-4337 smart account. The PermissionEnforcer
+                    contract validates every transaction — violations revert before execution.
+                  </p>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      On-chain + off-chain enforcement
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Violating transactions revert automatically
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Protocol and chain constraints
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Upgrade from advisory — one-way for security
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* Use Cases */}
+        <section className="py-20">
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">Use Cases</h2>

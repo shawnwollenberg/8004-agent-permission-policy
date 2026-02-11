@@ -4,7 +4,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Shield, Bot, FileCheck, Activity } from 'lucide-react'
+import { Shield, ShieldCheck, Bot, FileCheck, Activity } from 'lucide-react'
 import Link from 'next/link'
 
 export default function Home() {
@@ -39,7 +39,7 @@ export default function Home() {
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
             Safely authorize what your AI agents can do on-chain.
-            Permission controls, policy enforcement, and complete audit trails.
+            Policy enforcement via ERC-4337 smart accounts, advisory monitoring for EOA wallets, and complete audit trails.
           </p>
 
           {!isConnected ? (
@@ -94,9 +94,9 @@ export default function Home() {
           <Card>
             <CardHeader>
               <Shield className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Permission Control</CardTitle>
+              <CardTitle>Two Enforcement Tiers</CardTitle>
               <CardDescription>
-                Grant, revoke, and mint on-chain permissions with ERC-8004
+                Advisory mode for monitoring, or enforced mode with ERC-4337 smart accounts that block violations on-chain
               </CardDescription>
             </CardHeader>
           </Card>

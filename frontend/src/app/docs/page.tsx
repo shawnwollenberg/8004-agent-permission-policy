@@ -90,8 +90,10 @@ export default function DocsPage() {
                       <div>
                         <h3 className="font-semibold mb-1">Register an Agent</h3>
                         <p className="text-muted-foreground text-sm">
-                          Go to the Agents page and click "Register Agent". Give your agent a name,
-                          description, and optionally its wallet address. This creates an identity for your AI agent.
+                          Go to the Agents page and click "Register Agent". Choose a wallet type:
+                          <strong> EOA Wallet</strong> for advisory monitoring, or <strong>Smart Account</strong> (recommended)
+                          for on-chain enforcement via ERC-4337. Give your agent a name and description.
+                          Smart account agents get a deployed smart account that enforces policies on every transaction.
                         </p>
                       </div>
                     </div>
@@ -152,20 +154,21 @@ export default function DocsPage() {
                   <CardContent>
                     <p className="text-muted-foreground text-sm mb-4">
                       Agents represent your AI systems that need to perform on-chain actions.
-                      Each agent has a unique identity and can be registered on-chain using the ERC-8004 standard.
+                      Each agent operates in one of two enforcement tiers: Advisory (EOA wallet with off-chain monitoring)
+                      or Enforced (ERC-4337 smart account with on-chain policy gating).
                     </p>
                     <ul className="space-y-2 text-sm">
                       <li className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
-                        Unique identifier for each AI agent
+                        Advisory mode: monitoring + alerts via API
                       </li>
                       <li className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
-                        Optional on-chain registration
+                        Enforced mode: smart account blocks violations on-chain
                       </li>
                       <li className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
-                        Link to wallet address
+                        One-way upgrade from advisory to enforced
                       </li>
                     </ul>
                   </CardContent>
@@ -285,7 +288,7 @@ export default function DocsPage() {
   }
 }
 
-// Response (allowed)
+// Response (allowed — advisory agent)
 {
   "allowed": true,
   "permission_id": "...",
@@ -294,6 +297,21 @@ export default function DocsPage() {
     "maxValuePerTx": "5000",
     "maxDailyVolume": "50000"
   },
+  "enforcement_level": "advisory",
+  "wallet_type": "eoa",
+  "onchain_enforced": false,
+  "request_id": "..."
+}
+
+// Response (allowed — enforced smart account agent)
+{
+  "allowed": true,
+  "permission_id": "...",
+  "policy_id": "...",
+  "constraints": { ... },
+  "enforcement_level": "enforced",
+  "wallet_type": "smart_account",
+  "onchain_enforced": true,
   "request_id": "..."
 }
 
@@ -355,6 +373,14 @@ export default function DocsPage() {
                       <span className="text-muted-foreground">List your agents</span>
                     </div>
                     <div className="flex justify-between py-2 border-b">
+                      <code>POST /api/v1/agents/:id/deploy-smart-account</code>
+                      <span className="text-muted-foreground">Deploy ERC-4337 smart account</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <code>POST /api/v1/agents/:id/upgrade-to-smart-account</code>
+                      <span className="text-muted-foreground">Upgrade EOA to enforced mode</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b">
                       <code>GET /api/v1/policies</code>
                       <span className="text-muted-foreground">List your policies</span>
                     </div>
@@ -397,6 +423,9 @@ def validate_action(agent_id: str, action: dict) -> bool:
 
     if result["allowed"]:
         print(f"Action allowed. Constraints: {result['constraints']}")
+        # Smart account agents have on-chain enforcement too
+        if result.get("onchain_enforced"):
+            print("On-chain enforced via smart account")
         return True
     else:
         print(f"Action denied: {result['reason']}")
@@ -441,6 +470,9 @@ async function validateAction(agentId: string, action: object): Promise<boolean>
 
   if (result.allowed) {
     console.log("Action allowed. Constraints:", result.constraints);
+    if (result.onchain_enforced) {
+      console.log("On-chain enforced via smart account");
+    }
     return true;
   } else {
     console.log("Action denied:", result.reason);
@@ -503,6 +535,16 @@ if (allowed) {
                         <p className="font-medium">Review audit logs regularly</p>
                         <p className="text-sm text-muted-foreground">
                           Monitor the audit log to track agent behavior and identify issues.
+                        </p>
+                      </div>
+                    </li>
+                    <li className="flex gap-3">
+                      <ArrowRight className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium">Upgrade to enforced mode for high-value agents</p>
+                        <p className="text-sm text-muted-foreground">
+                          Start with advisory mode to test your policies, then upgrade to an ERC-4337 smart account
+                          for guaranteed on-chain enforcement. This is a one-way upgrade for security.
                         </p>
                       </div>
                     </li>

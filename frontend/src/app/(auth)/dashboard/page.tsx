@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { agents, policies, permissions, audit } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Bot, FileCheck, Key, Activity, TrendingUp, AlertCircle } from 'lucide-react'
+import { Bot, FileCheck, Key, Activity, TrendingUp, AlertCircle, Shield, ShieldCheck } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 
 export default function DashboardPage() {
@@ -29,6 +29,8 @@ export default function DashboardPage() {
   })
 
   const activeAgents = agentsList?.filter((a) => a.status === 'active').length || 0
+  const enforcedAgents = agentsList?.filter((a) => a.status === 'active' && a.enforcement_level === 'enforced').length || 0
+  const advisoryAgents = agentsList?.filter((a) => a.status === 'active' && a.enforcement_level !== 'enforced').length || 0
   const activePolicies = policiesList?.filter((p) => p.status === 'active').length || 0
   const activePermissions = permissionsList?.filter((p) => p.status === 'active').length || 0
 
@@ -43,9 +45,16 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{activeAgents}</div>
-            <p className="text-xs text-muted-foreground">
-              {agentsList?.length || 0} total registered
-            </p>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                {enforcedAgents} enforced
+              </span>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Shield className="h-3 w-3 text-amber-500" />
+                {advisoryAgents} advisory
+              </span>
+            </div>
           </CardContent>
         </Card>
 
