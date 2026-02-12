@@ -91,9 +91,9 @@ export default function DocsPage() {
                         <h3 className="font-semibold mb-1">Register an Agent</h3>
                         <p className="text-muted-foreground text-sm">
                           Go to the Agents page and click "Register Agent". Choose a wallet type:
-                          <strong> EOA Wallet</strong> for advisory monitoring, or <strong>Smart Account</strong> (recommended)
-                          for on-chain enforcement via ERC-4337. Give your agent a name and description.
-                          Smart account agents get a deployed smart account that enforces policies on every transaction.
+                          <strong> External Wallet</strong> for advisory monitoring, or <strong>Guardrail Secure Account</strong> (recommended)
+                          for guaranteed on-chain enforcement. Give your agent a name and description.
+                          Secure Account agents get a deployed account where unauthorized transactions cannot execute.
                         </p>
                       </div>
                     </div>
@@ -154,8 +154,8 @@ export default function DocsPage() {
                   <CardContent>
                     <p className="text-muted-foreground text-sm mb-4">
                       Agents represent your AI systems that need to perform on-chain actions.
-                      Each agent operates in one of two enforcement tiers: Advisory (EOA wallet with off-chain monitoring)
-                      or Enforced (ERC-4337 smart account with on-chain policy gating).
+                      Each agent operates in one of two enforcement tiers: Advisory (external wallet with off-chain monitoring)
+                      or Enforced (Guardrail Secure Account with on-chain policy gating).
                     </p>
                     <ul className="space-y-2 text-sm">
                       <li className="flex items-center gap-2">
@@ -164,7 +164,7 @@ export default function DocsPage() {
                       </li>
                       <li className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
-                        Enforced mode: smart account blocks violations on-chain
+                        Enforced mode: Secure Account blocks unauthorized transactions
                       </li>
                       <li className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
@@ -303,7 +303,7 @@ export default function DocsPage() {
   "request_id": "..."
 }
 
-// Response (allowed — enforced smart account agent)
+// Response (allowed — enforced Secure Account agent)
 {
   "allowed": true,
   "permission_id": "...",
@@ -374,11 +374,11 @@ export default function DocsPage() {
                     </div>
                     <div className="flex justify-between py-2 border-b">
                       <code>POST /api/v1/agents/:id/deploy-smart-account</code>
-                      <span className="text-muted-foreground">Deploy ERC-4337 smart account</span>
+                      <span className="text-muted-foreground">Deploy Guardrail Secure Account</span>
                     </div>
                     <div className="flex justify-between py-2 border-b">
                       <code>POST /api/v1/agents/:id/upgrade-to-smart-account</code>
-                      <span className="text-muted-foreground">Upgrade EOA to enforced mode</span>
+                      <span className="text-muted-foreground">Upgrade to Guardrail Secure Account</span>
                     </div>
                     <div className="flex justify-between py-2 border-b">
                       <code>GET /api/v1/policies</code>
@@ -423,9 +423,9 @@ def validate_action(agent_id: str, action: dict) -> bool:
 
     if result["allowed"]:
         print(f"Action allowed. Constraints: {result['constraints']}")
-        # Smart account agents have on-chain enforcement too
+        # Secure Account agents have on-chain enforcement too
         if result.get("onchain_enforced"):
-            print("On-chain enforced via smart account")
+            print("On-chain enforced via Guardrail Secure Account")
         return True
     else:
         print(f"Action denied: {result['reason']}")
@@ -471,7 +471,7 @@ async function validateAction(agentId: string, action: object): Promise<boolean>
   if (result.allowed) {
     console.log("Action allowed. Constraints:", result.constraints);
     if (result.onchain_enforced) {
-      console.log("On-chain enforced via smart account");
+      console.log("On-chain enforced via Guardrail Secure Account");
     }
     return true;
   } else {
@@ -543,8 +543,9 @@ if (allowed) {
                       <div>
                         <p className="font-medium">Upgrade to enforced mode for high-value agents</p>
                         <p className="text-sm text-muted-foreground">
-                          Start with advisory mode to test your policies, then upgrade to an ERC-4337 smart account
-                          for guaranteed on-chain enforcement. This is a one-way upgrade for security.
+                          Start with advisory mode to test your policies, then upgrade to a Guardrail Secure Account
+                          for guaranteed on-chain enforcement. Once assets are in a Secure Account, unauthorized
+                          transactions cannot execute. This is a one-way upgrade for security.
                         </p>
                       </div>
                     </li>

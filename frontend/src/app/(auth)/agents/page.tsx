@@ -142,10 +142,10 @@ export default function AgentsPage() {
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <Shield className="h-4 w-4 text-amber-500" />
-                        <span className="font-medium text-sm">EOA Wallet</span>
+                        <span className="font-medium text-sm">External Wallet</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Monitoring + Alerts (Advisory)
+                        Monitor with advisory alerts and reconciliation
                       </p>
                     </button>
                     <button
@@ -159,11 +159,11 @@ export default function AgentsPage() {
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                        <span className="font-medium text-sm">Smart Account</span>
+                        <span className="font-medium text-sm">Secure Account</span>
                         <Badge variant="secondary" className="text-[10px] px-1 py-0">Recommended</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Enforcement + Monitoring (Guaranteed)
+                        Guaranteed enforcement — unauthorized transactions cannot execute
                       </p>
                     </button>
                   </div>
@@ -205,16 +205,16 @@ export default function AgentsPage() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     {newAgent.wallet_type === 'smart_account'
-                      ? 'The EOA that will sign transactions. A new smart account will be deployed.'
-                      : 'The Ethereum address the agent will use for transactions'}
+                      ? 'The wallet that will sign transactions. A Guardrail Secure Account will be deployed.'
+                      : 'The wallet address the agent will use for transactions'}
                   </p>
                 </div>
 
                 {newAgent.wallet_type === 'smart_account' && (
                   <div className="rounded-md bg-muted p-3">
                     <p className="text-xs text-muted-foreground">
-                      A new smart account will be deployed for this agent. Policies will be enforced on-chain
-                      — transactions that violate policy will revert before execution.
+                      A Guardrail Secure Account will be deployed for this agent. Once assets are in a Guardrail
+                      Secure Account, unauthorized transactions cannot execute.
                     </p>
                   </div>
                 )}
@@ -242,19 +242,19 @@ export default function AgentsPage() {
           <Dialog.Overlay className="fixed inset-0 bg-black/50" />
           <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg">
             <Dialog.Title className="text-lg font-semibold">
-              Upgrade to Enforced Smart Account
+              Upgrade to Guardrail Secure Account
             </Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground mb-4">
-              This will upgrade the agent to use an on-chain enforced smart account.
+              This will upgrade the agent to a Guardrail Secure Account with guaranteed enforcement.
             </Dialog.Description>
             <div className="space-y-3 mb-6">
               <div className="rounded-md bg-muted p-3 text-sm space-y-2">
                 <p>This upgrade will:</p>
                 <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                  <li>Deploy a new smart account controlled by the current EOA</li>
-                  <li>The existing EOA becomes the signer for the smart account</li>
+                  <li>Deploy a Guardrail Secure Account controlled by the current wallet</li>
+                  <li>The existing wallet becomes the signer for the Secure Account</li>
                   <li>All policies will be enforced on-chain going forward</li>
-                  <li>Transactions violating policy will revert before execution</li>
+                  <li>Once assets are in the Secure Account, unauthorized transactions cannot execute</li>
                 </ul>
               </div>
               <div className="rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm text-amber-700 dark:text-amber-400">
@@ -334,7 +334,7 @@ export default function AgentsPage() {
                           }}
                         >
                           <ArrowUpCircle className="h-4 w-4" />
-                          Upgrade to Enforced Smart Account
+                          Upgrade to Secure Account
                         </DropdownMenu.Item>
                       )}
                       <DropdownMenu.Item
@@ -359,7 +359,7 @@ export default function AgentsPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      {agent.wallet_type === 'smart_account' ? 'Smart Account' : 'EOA Wallet'}
+                      {agent.wallet_type === 'smart_account' ? 'Secure Account' : 'External Wallet'}
                     </p>
                     {agent.agent_address && (
                       <p className="text-sm font-mono">

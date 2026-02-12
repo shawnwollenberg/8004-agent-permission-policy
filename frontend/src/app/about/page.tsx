@@ -261,8 +261,8 @@ else:
                   <h2 className="text-3xl font-bold mb-4">Built on ERC-8004</h2>
                   <p className="text-muted-foreground mb-6">
                     Guardrail implements the ERC-8004 standard for AI agent authorization
-                    with ERC-4337 smart account enforcement. Policies are enforced both
-                    off-chain (API validation) and on-chain (smart account transaction gating).
+                    with Guardrail Secure Accounts for guaranteed enforcement. Policies are enforced both
+                    off-chain (API validation) and on-chain (Secure Account transaction gating).
                   </p>
                   <ul className="space-y-3">
                     <li className="flex items-center gap-3">
@@ -275,7 +275,7 @@ else:
                     </li>
                     <li className="flex items-center gap-3">
                       <CheckCircle className="h-5 w-5 text-green-500" />
-                      <span>ERC-4337 smart accounts with policy-gated transactions</span>
+                      <span>Guardrail Secure Accounts with policy-gated transactions</span>
                     </li>
                     <li className="flex items-center gap-3">
                       <CheckCircle className="h-5 w-5 text-green-500" />
@@ -341,8 +341,8 @@ else:
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Agent uses a standard EOA wallet. Guardrail validates actions via API
-                    and logs everything, but cannot prevent on-chain execution.
+                    Monitor external wallets with advisory alerts and reconciliation. Guardrail validates
+                    actions via API and logs everything, but cannot prevent on-chain execution.
                   </p>
                   <ul className="space-y-2 text-sm">
                     <li className="flex items-center gap-2">
@@ -374,8 +374,8 @@ else:
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Agent operates through an ERC-4337 smart account. The PermissionEnforcer
-                    contract validates every transaction — violations revert before execution.
+                    Agent operates through a Guardrail Secure Account. Once assets are in a
+                    Secure Account, unauthorized transactions cannot execute.
                   </p>
                   <ul className="space-y-2 text-sm">
                     <li className="flex items-center gap-2">

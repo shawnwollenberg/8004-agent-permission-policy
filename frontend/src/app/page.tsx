@@ -39,7 +39,7 @@ export default function Home() {
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
             Safely authorize what your AI agents can do on-chain.
-            Policy enforcement via ERC-4337 smart accounts, advisory monitoring for EOA wallets, and complete audit trails.
+            Guaranteed enforcement via Guardrail Secure Accounts, advisory monitoring for external wallets, and complete audit trails.
           </p>
 
           {!isConnected ? (
@@ -96,7 +96,7 @@ export default function Home() {
               <Shield className="h-10 w-10 text-primary mb-2" />
               <CardTitle>Two Enforcement Tiers</CardTitle>
               <CardDescription>
-                Advisory mode for monitoring, or enforced mode with ERC-4337 smart accounts that block violations on-chain
+                Monitor external wallets with advisory alerts, or guarantee enforcement with Guardrail Secure Accounts — unauthorized transactions cannot execute
               </CardDescription>
             </CardHeader>
           </Card>
