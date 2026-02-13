@@ -196,7 +196,9 @@ func (c *Client) ComputeSmartAccountAddress(signerAddress string, agentIDHex str
 // Returns the transaction hash.
 func (c *Client) RegisterAgent(ctx context.Context, agentID [32]byte, metadata string) (string, error) {
 	if c.simulated || c.identityRegistry == nil {
-		return "simulated-registry-id-" + hex.EncodeToString(agentID[24:]), nil
+		// Return a realistic-looking tx hash for demo/simulated mode
+		hash := sha256.Sum256(append([]byte("register:"), agentID[:]...))
+		return "0x" + hex.EncodeToString(hash[:]), nil
 	}
 
 	tx, err := c.transact(ctx, c.identityRegistry.BoundContract, "registerAgent", agentID, metadata)
@@ -217,9 +219,10 @@ func (c *Client) RegisterAgent(ctx context.Context, agentID [32]byte, metadata s
 func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, agentID [32]byte, salt [32]byte) (string, string, error) {
 	if c.simulated || c.factory == nil {
 		input := fmt.Sprintf("%s:%s:%s", owner.Hex(), hex.EncodeToString(agentID[:]), hex.EncodeToString(salt[:]))
-		hash := sha256.Sum256([]byte(input))
-		addr := "0x" + hex.EncodeToString(hash[:20])
-		return addr, "simulated-deploy-tx", nil
+		addrHash := sha256.Sum256([]byte(input))
+		addr := "0x" + hex.EncodeToString(addrHash[:20])
+		txHash := sha256.Sum256(append([]byte("deploy:"), addrHash[:]...))
+		return addr, "0x" + hex.EncodeToString(txHash[:]), nil
 	}
 
 	tx, err := c.transact(ctx, c.factory.BoundContract, "createAccount", owner, agentID, salt)
@@ -256,7 +259,8 @@ func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, a
 func (c *Client) GrantPermission(ctx context.Context, policyHash [32]byte, agentID [32]byte, validFrom, validUntil *big.Int) (string, string, error) {
 	if c.simulated || c.policyRegistry == nil {
 		permID := crypto.Keccak256(append(policyHash[:], agentID[:]...))
-		return "0x" + hex.EncodeToString(permID), "simulated-mint-tx", nil
+		txHash := sha256.Sum256(append([]byte("mint:"), permID...))
+		return "0x" + hex.EncodeToString(permID), "0x" + hex.EncodeToString(txHash[:]), nil
 	}
 
 	tx, err := c.transact(ctx, c.policyRegistry.BoundContract, "grantPermission", policyHash, agentID, validFrom, validUntil)
@@ -296,7 +300,8 @@ func (c *Client) SetConstraints(
 		c.logger.Info().
 			Str("permission_id", hex.EncodeToString(permissionID[:])).
 			Msg("simulated: would call setConstraints")
-		return "simulated-sync-tx", nil
+		txHash := sha256.Sum256(append([]byte("sync:"), permissionID[:]...))
+		return "0x" + hex.EncodeToString(txHash[:]), nil
 	}
 
 	tx, err := c.transact(ctx, c.enforcer.BoundContract, "setConstraints",

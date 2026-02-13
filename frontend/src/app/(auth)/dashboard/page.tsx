@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Bot, FileCheck, Key, Activity, TrendingUp, AlertCircle, Shield, ShieldCheck } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
+import Link from 'next/link'
 
 export default function DashboardPage() {
   const { data: agentsList } = useQuery({
@@ -139,7 +140,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <a
+              <Link
                 href="/agents"
                 className="block rounded-lg border p-3 hover:bg-muted transition-colors"
               >
@@ -152,8 +153,8 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/policies"
                 className="block rounded-lg border p-3 hover:bg-muted transition-colors"
               >
@@ -166,8 +167,8 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/permissions"
                 className="block rounded-lg border p-3 hover:bg-muted transition-colors"
               >
@@ -180,7 +181,7 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-              </a>
+              </Link>
             </div>
           </CardContent>
         </Card>

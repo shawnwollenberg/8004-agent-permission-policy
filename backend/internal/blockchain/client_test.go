@@ -155,8 +155,8 @@ func TestCreateSmartAccount_Simulated(t *testing.T) {
 	if addr == "" {
 		t.Fatal("expected non-empty address")
 	}
-	if txHash != "simulated-deploy-tx" {
-		t.Fatalf("expected simulated tx hash, got %s", txHash)
+	if len(txHash) < 10 || txHash[:2] != "0x" {
+		t.Fatalf("expected hex tx hash, got %s", txHash)
 	}
 }
 
@@ -179,8 +179,8 @@ func TestGrantPermission_Simulated(t *testing.T) {
 	if permID == "" {
 		t.Fatal("expected non-empty permission ID")
 	}
-	if txHash != "simulated-mint-tx" {
-		t.Fatalf("expected simulated tx hash, got %s", txHash)
+	if len(txHash) < 10 || txHash[:2] != "0x" {
+		t.Fatalf("expected hex tx hash, got %s", txHash)
 	}
 }
 
@@ -198,7 +198,7 @@ func TestSetConstraints_Simulated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if txHash != "simulated-sync-tx" {
-		t.Fatalf("expected simulated tx hash, got %s", txHash)
+	if len(txHash) < 10 || txHash[:2] != "0x" {
+		t.Fatalf("expected hex tx hash, got %s", txHash)
 	}
 }
