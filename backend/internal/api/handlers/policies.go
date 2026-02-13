@@ -344,6 +344,26 @@ func (h *Handlers) RevokePolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get the on-chain hash before revoking (needed for deactivatePolicy call)
+	var onchainHash *string
+	h.db.QueryRow(r.Context(),
+		`SELECT onchain_hash FROM policies WHERE id = $1 AND wallet_id = $2 AND status = 'active'`,
+		policyID, userID,
+	).Scan(&onchainHash)
+
+	// Deactivate on-chain if the policy was registered
+	if onchainHash != nil && *onchainHash != "" {
+		policyIDBytes, decErr := blockchain.HexToBytes32(*onchainHash)
+		if decErr == nil {
+			txHash, bcErr := h.blockchainClient.DeactivatePolicy(r.Context(), policyIDBytes)
+			if bcErr != nil {
+				h.logger.Error().Err(bcErr).Str("policy_id", policyID.String()).Msg("on-chain policy deactivation failed (continuing with DB revoke)")
+			} else {
+				h.logger.Info().Str("policy_id", policyID.String()).Str("tx_hash", txHash).Msg("policy deactivated on-chain")
+			}
+		}
+	}
+
 	var p Policy
 	var defBytes []byte
 	err = h.db.QueryRow(r.Context(),
@@ -362,6 +382,66 @@ func (h *Handlers) RevokePolicy(w http.ResponseWriter, r *http.Request) {
 		WalletID:  userID,
 		PolicyID:  &policyID,
 		EventType: "policy.revoked",
+	})
+
+	respondJSON(w, http.StatusOK, p)
+}
+
+func (h *Handlers) ReactivatePolicy(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	policyIDStr := r.PathValue("id")
+
+	policyID, err := uuid.Parse(policyIDStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid policy id")
+		return
+	}
+
+	// Verify the policy is currently revoked and get its on-chain hash
+	var onchainHash *string
+	err = h.db.QueryRow(r.Context(),
+		`SELECT onchain_hash FROM policies WHERE id = $1 AND wallet_id = $2 AND status = 'revoked'`,
+		policyID, userID,
+	).Scan(&onchainHash)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "policy not found or not revoked")
+		return
+	}
+
+	// Reactivate on-chain if the policy was previously registered
+	if onchainHash != nil && *onchainHash != "" {
+		policyIDBytes, decErr := blockchain.HexToBytes32(*onchainHash)
+		if decErr == nil {
+			txHash, bcErr := h.blockchainClient.ReactivatePolicy(r.Context(), policyIDBytes)
+			if bcErr != nil {
+				h.logger.Error().Err(bcErr).Str("policy_id", policyID.String()).Msg("on-chain policy reactivation failed")
+				respondError(w, http.StatusInternalServerError, "on-chain policy reactivation failed: "+bcErr.Error())
+				return
+			}
+			h.logger.Info().Str("policy_id", policyID.String()).Str("tx_hash", txHash).Msg("policy reactivated on-chain")
+		}
+	}
+
+	// Reactivate in DB
+	var p Policy
+	var defBytes []byte
+	err = h.db.QueryRow(r.Context(),
+		`UPDATE policies SET status = 'active', revoked_at = NULL, updated_at = NOW()
+		 WHERE id = $1 AND wallet_id = $2 AND status = 'revoked'
+		 RETURNING id, wallet_id, name, description, definition, status, version, onchain_hash, created_at, updated_at, activated_at, revoked_at`,
+		policyID, userID,
+	).Scan(&p.ID, &p.WalletID, &p.Name, &p.Description, &defBytes, &p.Status, &p.Version, &p.OnchainHash, &p.CreatedAt, &p.UpdatedAt, &p.ActivatedAt, &p.RevokedAt)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "policy not found or not revoked")
+		return
+	}
+	json.Unmarshal(defBytes, &p.Definition)
+
+	h.auditLogger.Log(r.Context(), audit.Event{
+		WalletID:  userID,
+		PolicyID:  &policyID,
+		EventType: "policy.reactivated",
+		Details:   map[string]interface{}{"simulated": h.blockchainClient.IsSimulated()},
 	})
 
 	respondJSON(w, http.StatusOK, p)

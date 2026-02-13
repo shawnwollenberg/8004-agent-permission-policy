@@ -93,6 +93,15 @@ export default function PoliciesPage() {
     onError: (e: Error) => toast({ title: 'Failed to revoke policy', description: e.message, variant: 'destructive' }),
   })
 
+  const reactivateMutation = useMutation({
+    mutationFn: policies.reactivate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] })
+      toast({ title: 'Policy reactivated', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to reactivate policy', description: e.message, variant: 'destructive' }),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: policies.delete,
     onSuccess: () => {
@@ -529,6 +538,15 @@ export default function PoliciesPage() {
                         >
                           <Pause className="h-4 w-4" />
                           Revoke
+                        </DropdownMenu.Item>
+                      )}
+                      {policy.status === 'revoked' && (
+                        <DropdownMenu.Item
+                          className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
+                          onClick={() => reactivateMutation.mutate(policy.id)}
+                        >
+                          <Play className="h-4 w-4" />
+                          Reactivate
                         </DropdownMenu.Item>
                       )}
                       <DropdownMenu.Item

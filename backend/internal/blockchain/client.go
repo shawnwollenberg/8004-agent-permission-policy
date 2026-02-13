@@ -284,6 +284,48 @@ func (c *Client) CreatePolicy(ctx context.Context, contentHash [32]byte) (string
 	return "0x" + hex.EncodeToString(policyID), receipt.TxHash.Hex(), nil
 }
 
+// DeactivatePolicy deactivates a policy on-chain in the PolicyRegistry.
+// Returns the tx hash.
+func (c *Client) DeactivatePolicy(ctx context.Context, policyID [32]byte) (string, error) {
+	if c.simulated || c.policyRegistry == nil {
+		txHash := sha256.Sum256(append([]byte("deactivatePolicy:"), policyID[:]...))
+		return "0x" + hex.EncodeToString(txHash[:]), nil
+	}
+
+	tx, err := c.transact(ctx, c.policyRegistry.BoundContract, "deactivatePolicy", policyID)
+	if err != nil {
+		return "", fmt.Errorf("deactivatePolicy tx failed: %w", err)
+	}
+
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+
+	return receipt.TxHash.Hex(), nil
+}
+
+// ReactivatePolicy reactivates a previously deactivated policy on-chain.
+// Returns the tx hash.
+func (c *Client) ReactivatePolicy(ctx context.Context, policyID [32]byte) (string, error) {
+	if c.simulated || c.policyRegistry == nil {
+		txHash := sha256.Sum256(append([]byte("reactivatePolicy:"), policyID[:]...))
+		return "0x" + hex.EncodeToString(txHash[:]), nil
+	}
+
+	tx, err := c.transact(ctx, c.policyRegistry.BoundContract, "reactivatePolicy", policyID)
+	if err != nil {
+		return "", fmt.Errorf("reactivatePolicy tx failed: %w", err)
+	}
+
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+
+	return receipt.TxHash.Hex(), nil
+}
+
 // GrantPermission registers a permission on-chain in the PolicyRegistry.
 // Returns the on-chain permission ID (bytes32) as hex string and the tx hash.
 func (c *Client) GrantPermission(ctx context.Context, policyHash [32]byte, agentID [32]byte, validFrom, validUntil *big.Int) (string, string, error) {

@@ -96,6 +96,7 @@ func (s *Server) setupRoutes() {
 				r.Delete("/{id}", s.handlers.DeletePolicy)
 				r.Post("/{id}/activate", s.handlers.ActivatePolicy)
 				r.Post("/{id}/revoke", s.handlers.RevokePolicy)
+				r.Post("/{id}/reactivate", s.handlers.ReactivatePolicy)
 			})
 
 			// Permissions

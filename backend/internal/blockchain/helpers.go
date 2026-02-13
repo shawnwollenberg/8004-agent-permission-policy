@@ -1,6 +1,8 @@
 package blockchain
 
 import (
+	"encoding/hex"
+	"fmt"
 	"math/big"
 	"strings"
 
@@ -61,7 +63,22 @@ func WeiFromString(amount string) *big.Int {
 	return val
 }
 
+// HexToBytes32 decodes a hex string (with or without 0x prefix) into [32]byte.
+func HexToBytes32(hexStr string) ([32]byte, error) {
+	var result [32]byte
+	s := strings.TrimPrefix(hexStr, "0x")
+	decoded, err := hex.DecodeString(s)
+	if err != nil {
+		return result, fmt.Errorf("invalid hex: %w", err)
+	}
+	if len(decoded) != 32 {
+		return result, fmt.Errorf("expected 32 bytes, got %d", len(decoded))
+	}
+	copy(result[:], decoded)
+	return result, nil
+}
+
 // HexToAddress converts a hex string to common.Address.
-func HexToAddress(hex string) common.Address {
-	return common.HexToAddress(hex)
+func HexToAddress(hexStr string) common.Address {
+	return common.HexToAddress(hexStr)
 }

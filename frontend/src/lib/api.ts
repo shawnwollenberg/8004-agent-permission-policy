@@ -152,6 +152,7 @@ export const policies = {
   delete: (id: string) => fetchApi<void>(`/api/v1/policies/${id}`, { method: 'DELETE' }),
   activate: (id: string) => fetchApi<Policy>(`/api/v1/policies/${id}/activate`, { method: 'POST' }),
   revoke: (id: string) => fetchApi<Policy>(`/api/v1/policies/${id}/revoke`, { method: 'POST' }),
+  reactivate: (id: string) => fetchApi<Policy>(`/api/v1/policies/${id}/reactivate`, { method: 'POST' }),
 }
 
 // Permissions
