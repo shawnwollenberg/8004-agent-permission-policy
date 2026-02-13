@@ -60,6 +60,7 @@ export interface Agent {
   wallet_type: 'eoa' | 'smart_account'
   enforcement_level: 'advisory' | 'enforced'
   smart_account_address?: string
+  signer_address?: string
   created_at: string
   updated_at: string
   onchain_registered_at?: string

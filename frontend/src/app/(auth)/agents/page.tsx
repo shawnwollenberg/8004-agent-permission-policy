@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { formatDate, formatAddress } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { CopyableAddress } from '@/components/ui/copyable-address'
 import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle, Rocket } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -422,21 +423,15 @@ export default function AgentsPage() {
                         Deploying...
                       </p>
                     ) : agent.wallet_type === 'smart_account' && agent.smart_account_address ? (
-                      <p className="text-sm font-mono">
-                        {formatAddress(agent.smart_account_address)}
-                      </p>
+                      <CopyableAddress address={agent.smart_account_address} />
                     ) : agent.agent_address ? (
-                      <p className="text-sm font-mono">
-                        {formatAddress(agent.agent_address)}
-                      </p>
+                      <CopyableAddress address={agent.agent_address} />
                     ) : null}
                   </div>
-                  {agent.wallet_type === 'smart_account' && agent.smart_account_address && agent.agent_address && (
+                  {agent.wallet_type === 'smart_account' && agent.signer_address && (
                     <div>
                       <p className="text-xs text-muted-foreground">Signer</p>
-                      <p className="text-sm font-mono">
-                        {formatAddress(agent.agent_address)}
-                      </p>
+                      <CopyableAddress address={agent.signer_address} />
                     </div>
                   )}
                   {agent.onchain_registry_id && (
@@ -444,9 +439,7 @@ export default function AgentsPage() {
                       <p className="text-xs text-muted-foreground">
                         Registry ID
                       </p>
-                      <p className="text-sm font-mono truncate">
-                        {agent.onchain_registry_id}
-                      </p>
+                      <CopyableAddress address={agent.onchain_registry_id} />
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
