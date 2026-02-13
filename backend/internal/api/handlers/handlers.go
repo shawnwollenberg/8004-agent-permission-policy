@@ -20,16 +20,19 @@ type Handlers struct {
 	policyEngine     *policy.Engine
 	auditLogger      *audit.Logger
 	blockchainClient *blockchain.Client
+	onchainSyncer    *policy.OnchainSyncer
 }
 
 func New(db *pgxpool.Pool, logger zerolog.Logger, cfg *config.Config) *Handlers {
+	bc := blockchain.NewClient(cfg, logger)
 	return &Handlers{
 		db:               db,
 		logger:           logger,
 		cfg:              cfg,
 		policyEngine:     policy.NewEngine(db, logger),
 		auditLogger:      audit.NewLogger(db, logger),
-		blockchainClient: blockchain.NewClient(cfg, logger),
+		blockchainClient: bc,
+		onchainSyncer:    policy.NewOnchainSyncer(db, bc, logger),
 	}
 }
 

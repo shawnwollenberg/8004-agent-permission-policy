@@ -13,6 +13,7 @@ import Link from 'next/link'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Select from '@radix-ui/react-select'
+import { useToast } from '@/hooks/useToast'
 
 export default function PermissionsPage() {
   const queryClient = useQueryClient()
@@ -37,23 +38,35 @@ export default function PermissionsPage() {
     queryFn: policies.list,
   })
 
+  const { toast } = useToast()
+
   const createMutation = useMutation({
     mutationFn: permissions.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permissions'] })
       setIsCreateOpen(false)
       setNewPermission({ agent_id: '', policy_id: '' })
+      toast({ title: 'Permission granted', variant: 'success' })
     },
+    onError: (e: Error) => toast({ title: 'Failed to grant permission', description: e.message, variant: 'destructive' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: permissions.delete,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['permissions'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['permissions'] })
+      toast({ title: 'Permission revoked', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to revoke permission', description: e.message, variant: 'destructive' }),
   })
 
   const mintMutation = useMutation({
     mutationFn: permissions.mint,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['permissions'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['permissions'] })
+      toast({ title: 'Permission minted on-chain', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to mint permission', description: e.message, variant: 'destructive' }),
   })
 
   const getAgentName = (agentId: string) => {

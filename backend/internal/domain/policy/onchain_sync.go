@@ -2,29 +2,33 @@ package policy
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
+	"encoding/json"
+	"math/big"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+
+	"github.com/erc8004/policy-saas/internal/blockchain"
 )
 
 // OnchainSyncer handles syncing policy constraints to the on-chain PermissionEnforcer
 // when permissions are created or modified for smart account agents.
 type OnchainSyncer struct {
 	db     *pgxpool.Pool
+	bc     *blockchain.Client
 	logger zerolog.Logger
 }
 
-func NewOnchainSyncer(db *pgxpool.Pool, logger zerolog.Logger) *OnchainSyncer {
-	return &OnchainSyncer{db: db, logger: logger}
+func NewOnchainSyncer(db *pgxpool.Pool, bc *blockchain.Client, logger zerolog.Logger) *OnchainSyncer {
+	return &OnchainSyncer{db: db, bc: bc, logger: logger}
 }
 
 // SyncConstraints converts a policy Definition to contract-compatible types and
 // syncs them to the on-chain PermissionEnforcer for a given permission.
-// In dev mode (no blockchain client), this logs the intent and stores a record.
+// Only runs for smart_account agents. Advisory (EOA) agents skip sync.
 func (s *OnchainSyncer) SyncConstraints(ctx context.Context, permissionID uuid.UUID, agentID uuid.UUID) error {
 	// Look up agent's wallet type
 	var walletType string
@@ -37,6 +41,10 @@ func (s *OnchainSyncer) SyncConstraints(ctx context.Context, permissionID uuid.U
 
 	// Only sync for smart account agents
 	if walletType != "smart_account" {
+		s.logger.Debug().
+			Str("agent_id", agentID.String()).
+			Str("wallet_type", walletType).
+			Msg("skipping constraint sync for non-smart-account agent")
 		return nil
 	}
 
@@ -52,8 +60,16 @@ func (s *OnchainSyncer) SyncConstraints(ctx context.Context, permissionID uuid.U
 		return err
 	}
 
-	// Convert policy definition to on-chain compatible format
-	syncData := buildSyncData(definitionJSON, permissionID)
+	// Parse the definition
+	var def Definition
+	if err := json.Unmarshal(definitionJSON, &def); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse policy definition for sync")
+		return err
+	}
+
+	// Build constraint parameters
+	syncData := buildSyncData(&def)
+	permIDBytes := blockchain.UUIDToBytes32(permissionID.String())
 
 	s.logger.Info().
 		Str("permission_id", permissionID.String()).
@@ -61,38 +77,97 @@ func (s *OnchainSyncer) SyncConstraints(ctx context.Context, permissionID uuid.U
 		Interface("sync_data", syncData).
 		Msg("syncing constraints to on-chain enforcer")
 
-	// Store sync record in audit
-	// In production, this would call enforcer.setConstraints() on-chain
+	// Push constraints on-chain
+	txHash, err := s.bc.SetConstraints(
+		ctx,
+		permIDBytes,
+		syncData.MaxValuePerTx,
+		syncData.MaxDailyVolume,
+		syncData.MaxTxCount,
+		syncData.AllowedActions,
+		syncData.AllowedTokens,
+		syncData.AllowedProtocols,
+		syncData.AllowedChains,
+	)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("setConstraints on-chain call failed")
+		return err
+	}
+
+	s.logger.Info().
+		Str("permission_id", permissionID.String()).
+		Str("tx_hash", txHash).
+		Msg("constraints synced to on-chain enforcer")
+
 	return nil
 }
 
 // SyncData represents the contract-compatible constraint format.
 type SyncData struct {
-	PermissionHash  string   `json:"permission_hash"`
-	MaxValuePerTx   string   `json:"max_value_per_tx"`
-	MaxDailyVolume  string   `json:"max_daily_volume"`
-	MaxTxCount      uint64   `json:"max_tx_count"`
-	AllowedActions  []string `json:"allowed_actions"`
-	AllowedTokens   []string `json:"allowed_tokens"`
-	AllowedProtocols []string `json:"allowed_protocols"`
-	AllowedChains   []uint64 `json:"allowed_chains"`
+	MaxValuePerTx    *big.Int           `json:"max_value_per_tx"`
+	MaxDailyVolume   *big.Int           `json:"max_daily_volume"`
+	MaxTxCount       *big.Int           `json:"max_tx_count"`
+	AllowedActions   [][32]byte         `json:"allowed_actions"`
+	AllowedTokens    []common.Address   `json:"allowed_tokens"`
+	AllowedProtocols []common.Address   `json:"allowed_protocols"`
+	AllowedChains    []*big.Int         `json:"allowed_chains"`
 }
 
-func buildSyncData(definitionJSON []byte, permissionID uuid.UUID) SyncData {
-	// Hash the permission ID to bytes32 format
-	h := sha256.Sum256([]byte(permissionID.String()))
-	permHash := "0x" + hex.EncodeToString(h[:])
-
-	// Parse definition and extract constraint values
-	// For now, return a placeholder that demonstrates the format
-	return SyncData{
-		PermissionHash: permHash,
+func buildSyncData(def *Definition) SyncData {
+	sd := SyncData{
+		MaxValuePerTx:  blockchain.WeiFromString(def.Constraints.MaxValuePerTx),
+		MaxDailyVolume: blockchain.WeiFromString(def.Constraints.MaxDailyVolume),
+		MaxTxCount:     big.NewInt(int64(def.Constraints.MaxTxCount)),
 	}
+
+	// Convert action strings to keccak256 hashes
+	for _, action := range def.Actions {
+		if action == "*" {
+			continue // Wildcard not sent to chain; absence of actions = allow all
+		}
+		sd.AllowedActions = append(sd.AllowedActions, blockchain.ActionHash(action))
+	}
+
+	// Convert token address strings to common.Address
+	for _, token := range def.Assets.Tokens {
+		token = strings.TrimSpace(token)
+		if token != "" && strings.HasPrefix(token, "0x") {
+			sd.AllowedTokens = append(sd.AllowedTokens, common.HexToAddress(token))
+		}
+	}
+
+	// Convert protocol address strings to common.Address
+	for _, protocol := range def.Assets.Protocols {
+		protocol = strings.TrimSpace(protocol)
+		if protocol != "" && strings.HasPrefix(protocol, "0x") {
+			sd.AllowedProtocols = append(sd.AllowedProtocols, common.HexToAddress(protocol))
+		}
+	}
+
+	// Convert chain IDs to *big.Int
+	for _, chain := range def.Assets.Chains {
+		sd.AllowedChains = append(sd.AllowedChains, big.NewInt(chain))
+	}
+
+	// Ensure non-nil slices
+	if sd.AllowedActions == nil {
+		sd.AllowedActions = [][32]byte{}
+	}
+	if sd.AllowedTokens == nil {
+		sd.AllowedTokens = []common.Address{}
+	}
+	if sd.AllowedProtocols == nil {
+		sd.AllowedProtocols = []common.Address{}
+	}
+	if sd.AllowedChains == nil {
+		sd.AllowedChains = []*big.Int{}
+	}
+
+	return sd
 }
 
-// ActionHash computes a keccak256-style hash for an action type string,
+// ActionHash computes a keccak256 hash for an action type string,
 // matching what the Solidity contract would use: keccak256(abi.encodePacked(actionType)).
-func ActionHash(actionType string) string {
-	h := sha256.Sum256([]byte(strings.ToLower(actionType)))
-	return "0x" + hex.EncodeToString(h[:])
+func ActionHash(actionType string) [32]byte {
+	return blockchain.ActionHash(actionType)
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/erc8004/policy-saas/internal/api/middleware"
+	"github.com/erc8004/policy-saas/internal/blockchain"
 	"github.com/erc8004/policy-saas/internal/domain/audit"
 )
 
@@ -245,8 +246,14 @@ func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// TODO: Implement actual on-chain registration via ERC-8004 Identity Registry
-	// For now, simulate the registration
+	// Register agent on-chain via IdentityRegistry (or simulate)
+	agentIDBytes := blockchain.UUIDToBytes32(agentID.String())
+	registryID, err := h.blockchainClient.RegisterAgent(r.Context(), agentIDBytes, agentID.String())
+	if err != nil {
+		h.logger.Error().Err(err).Str("agent_id", agentID.String()).Msg("on-chain registration failed")
+		respondError(w, http.StatusInternalServerError, "on-chain registration failed: "+err.Error())
+		return
+	}
 
 	var agent Agent
 	err = h.db.QueryRow(r.Context(),
@@ -256,7 +263,7 @@ func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) 
 			updated_at = NOW()
 		 WHERE id = $2 AND wallet_id = $3 AND status != 'deleted'
 		 RETURNING id, wallet_id, name, description, agent_address, onchain_registry_id, status, wallet_type, enforcement_level, created_at, updated_at, onchain_registered_at`,
-		"simulated-registry-id-"+agentID.String()[:8], agentID, userID,
+		registryID, agentID, userID,
 	).Scan(&agent.ID, &agent.WalletID, &agent.Name, &agent.Description, &agent.AgentAddress, &agent.OnchainRegistryID, &agent.Status, &agent.WalletType, &agent.EnforcementLevel, &agent.CreatedAt, &agent.UpdatedAt, &agent.OnchainRegisteredAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "agent not found")
@@ -267,7 +274,7 @@ func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) 
 		WalletID:  userID,
 		AgentID:   &agentID,
 		EventType: "agent.registered_onchain",
-		Details:   map[string]interface{}{"registry_id": agent.OnchainRegistryID},
+		Details:   map[string]interface{}{"registry_id": registryID, "simulated": h.blockchainClient.IsSimulated()},
 	})
 
 	respondJSON(w, http.StatusOK, agent)

@@ -1,20 +1,41 @@
 package blockchain
 
 import (
+	"context"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math/big"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
 
+	"github.com/erc8004/policy-saas/internal/blockchain/bindings"
 	"github.com/erc8004/policy-saas/internal/config"
 )
 
 // Client wraps blockchain interactions for smart account operations.
-// In dev mode (no RPC configured), it simulates addresses deterministically.
+// When no DEPLOYER_PRIVATE_KEY is configured, it runs in simulated mode
+// (deterministic SHA256-based addresses, no real transactions).
 type Client struct {
+	ethClient        *ethclient.Client
+	chainID          *big.Int
+	signer           *bind.TransactOpts
+	signerKey        *ecdsa.PrivateKey
+	identityRegistry *bindings.IdentityRegistry
+	policyRegistry   *bindings.PolicyRegistry
+	enforcer         *bindings.PermissionEnforcer
+	factory          *bindings.AgentAccountFactory
+	simulated        bool
+
+	// Config addresses (always available)
 	rpcURL          string
-	chainID         int64
 	factoryAddress  string
 	enforcerAddress string
 	entryPoint      string
@@ -22,30 +43,103 @@ type Client struct {
 }
 
 // NewClient creates a blockchain client from config.
-// Returns nil if no factory address is configured.
+// If DEPLOYER_PRIVATE_KEY is empty, the client operates in simulated mode.
 func NewClient(cfg *config.Config, logger zerolog.Logger) *Client {
-	if cfg.Blockchain.SmartAccountFactoryAddress == "" {
-		logger.Info().Msg("blockchain client: no factory address configured, using simulated mode")
-	}
-
-	return &Client{
+	c := &Client{
 		rpcURL:          cfg.Blockchain.RPCURL,
-		chainID:         cfg.Blockchain.ChainID,
+		chainID:         big.NewInt(cfg.Blockchain.ChainID),
 		factoryAddress:  cfg.Blockchain.SmartAccountFactoryAddress,
 		enforcerAddress: cfg.Blockchain.PermissionEnforcerAddress,
 		entryPoint:      cfg.Blockchain.EntryPointAddress,
 		logger:          logger,
+		simulated:       true,
 	}
+
+	deployerKey := strings.TrimSpace(cfg.Blockchain.DeployerPrivateKey)
+	if deployerKey == "" {
+		logger.Info().Msg("blockchain client: no DEPLOYER_PRIVATE_KEY configured, using simulated mode")
+		return c
+	}
+
+	// Strip 0x prefix if present
+	deployerKey = strings.TrimPrefix(deployerKey, "0x")
+
+	// Parse private key
+	privateKey, err := crypto.HexToECDSA(deployerKey)
+	if err != nil {
+		logger.Error().Err(err).Msg("blockchain client: invalid DEPLOYER_PRIVATE_KEY, falling back to simulated mode")
+		return c
+	}
+	c.signerKey = privateKey
+
+	// Connect to RPC
+	ethClient, err := ethclient.Dial(cfg.Blockchain.RPCURL)
+	if err != nil {
+		logger.Error().Err(err).Str("rpc_url", cfg.Blockchain.RPCURL).Msg("blockchain client: failed to connect to RPC, falling back to simulated mode")
+		return c
+	}
+	c.ethClient = ethClient
+
+	// Create transaction signer
+	chainID := big.NewInt(cfg.Blockchain.ChainID)
+	txOpts, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
+	if err != nil {
+		logger.Error().Err(err).Msg("blockchain client: failed to create transactor, falling back to simulated mode")
+		return c
+	}
+	c.signer = txOpts
+
+	// Instantiate contract bindings
+	if cfg.Blockchain.IdentityRegistryAddress != "" {
+		ir, err := bindings.NewIdentityRegistry(common.HexToAddress(cfg.Blockchain.IdentityRegistryAddress), ethClient)
+		if err != nil {
+			logger.Error().Err(err).Msg("blockchain client: failed to bind IdentityRegistry")
+		} else {
+			c.identityRegistry = ir
+		}
+	}
+
+	if cfg.Blockchain.PolicyRegistryAddress != "" {
+		pr, err := bindings.NewPolicyRegistry(common.HexToAddress(cfg.Blockchain.PolicyRegistryAddress), ethClient)
+		if err != nil {
+			logger.Error().Err(err).Msg("blockchain client: failed to bind PolicyRegistry")
+		} else {
+			c.policyRegistry = pr
+		}
+	}
+
+	if cfg.Blockchain.PermissionEnforcerAddress != "" {
+		pe, err := bindings.NewPermissionEnforcer(common.HexToAddress(cfg.Blockchain.PermissionEnforcerAddress), ethClient)
+		if err != nil {
+			logger.Error().Err(err).Msg("blockchain client: failed to bind PermissionEnforcer")
+		} else {
+			c.enforcer = pe
+		}
+	}
+
+	if cfg.Blockchain.SmartAccountFactoryAddress != "" {
+		f, err := bindings.NewAgentAccountFactory(common.HexToAddress(cfg.Blockchain.SmartAccountFactoryAddress), ethClient)
+		if err != nil {
+			logger.Error().Err(err).Msg("blockchain client: failed to bind AgentAccountFactory")
+		} else {
+			c.factory = f
+		}
+	}
+
+	c.simulated = false
+	deployerAddr := crypto.PubkeyToAddress(privateKey.PublicKey)
+	logger.Info().
+		Str("deployer", deployerAddr.Hex()).
+		Int64("chain_id", cfg.Blockchain.ChainID).
+		Str("rpc_url", cfg.Blockchain.RPCURL).
+		Msg("blockchain client: connected in live mode")
+
+	return c
 }
 
-// ComputeSmartAccountAddress computes a deterministic address for a smart account.
-// When a real RPC is configured, this calls factory.getAddress() on-chain.
-// In dev mode, it computes a simulated deterministic address.
-func (c *Client) ComputeSmartAccountAddress(signerAddress string, agentIDHex string, salt string) (string, error) {
-	// Simulate a CREATE2-style deterministic address
-	input := fmt.Sprintf("%s:%s:%s:%s", c.factoryAddress, signerAddress, agentIDHex, salt)
-	hash := sha256.Sum256([]byte(input))
-	return "0x" + hex.EncodeToString(hash[:20]), nil
+// IsSimulated returns true when the client has no real blockchain connection.
+func (c *Client) IsSimulated() bool {
+	return c.simulated
 }
 
 // FactoryAddress returns the configured factory address.
@@ -58,7 +152,201 @@ func (c *Client) EntryPointAddress() string {
 	return c.entryPoint
 }
 
-// ChainID returns the configured chain ID.
+// ChainID returns the configured chain ID as int64.
 func (c *Client) ChainID() int64 {
-	return c.chainID
+	return c.chainID.Int64()
+}
+
+// --- On-chain operations ---
+// All methods check c.simulated and return graceful fallbacks when true.
+
+// ComputeSmartAccountAddress computes a deterministic address for a smart account.
+// In live mode, calls factory.getAddress() on-chain.
+// In simulated mode, computes a SHA256-based deterministic address.
+func (c *Client) ComputeSmartAccountAddress(signerAddress string, agentIDHex string, salt string) (string, error) {
+	if c.simulated || c.factory == nil {
+		input := fmt.Sprintf("%s:%s:%s:%s", c.factoryAddress, signerAddress, agentIDHex, salt)
+		hash := sha256.Sum256([]byte(input))
+		return "0x" + hex.EncodeToString(hash[:20]), nil
+	}
+
+	owner := common.HexToAddress(signerAddress)
+	agentID := Keccak256String(agentIDHex)
+	saltBytes := Keccak256String(salt)
+
+	var result []interface{}
+	err := c.factory.Call(&bind.CallOpts{}, &result, "getAddress", owner, agentID, saltBytes)
+	if err != nil {
+		return "", fmt.Errorf("factory.getAddress failed: %w", err)
+	}
+
+	if len(result) == 0 {
+		return "", fmt.Errorf("factory.getAddress returned no result")
+	}
+
+	addr, ok := result[0].(common.Address)
+	if !ok {
+		return "", fmt.Errorf("factory.getAddress returned unexpected type")
+	}
+
+	return addr.Hex(), nil
+}
+
+// RegisterAgent registers an agent in the IdentityRegistry on-chain.
+// Returns the transaction hash.
+func (c *Client) RegisterAgent(ctx context.Context, agentID [32]byte, metadata string) (string, error) {
+	if c.simulated || c.identityRegistry == nil {
+		return "simulated-registry-id-" + hex.EncodeToString(agentID[24:]), nil
+	}
+
+	tx, err := c.transact(ctx, c.identityRegistry.BoundContract, "registerAgent", agentID, metadata)
+	if err != nil {
+		return "", fmt.Errorf("registerAgent tx failed: %w", err)
+	}
+
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+
+	return receipt.TxHash.Hex(), nil
+}
+
+// CreateSmartAccount deploys a new ERC-4337 smart account via the factory.
+// Returns the deployed account address and transaction hash.
+func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, agentID [32]byte, salt [32]byte) (string, string, error) {
+	if c.simulated || c.factory == nil {
+		input := fmt.Sprintf("%s:%s:%s", owner.Hex(), hex.EncodeToString(agentID[:]), hex.EncodeToString(salt[:]))
+		hash := sha256.Sum256([]byte(input))
+		addr := "0x" + hex.EncodeToString(hash[:20])
+		return addr, "simulated-deploy-tx", nil
+	}
+
+	tx, err := c.transact(ctx, c.factory.BoundContract, "createAccount", owner, agentID, salt)
+	if err != nil {
+		return "", "", fmt.Errorf("createAccount tx failed: %w", err)
+	}
+
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Read the account address from the return value by calling getAddress
+	var result []interface{}
+	err = c.factory.Call(&bind.CallOpts{Context: ctx}, &result, "getAddress", owner, agentID, salt)
+	if err != nil {
+		return "", receipt.TxHash.Hex(), fmt.Errorf("factory.getAddress post-deploy failed: %w", err)
+	}
+
+	if len(result) == 0 {
+		return "", receipt.TxHash.Hex(), fmt.Errorf("factory.getAddress returned no result")
+	}
+
+	addr, ok := result[0].(common.Address)
+	if !ok {
+		return "", receipt.TxHash.Hex(), fmt.Errorf("factory.getAddress returned unexpected type")
+	}
+
+	return addr.Hex(), receipt.TxHash.Hex(), nil
+}
+
+// GrantPermission registers a permission on-chain in the PolicyRegistry.
+// Returns the on-chain permission ID (bytes32) as hex string and the tx hash.
+func (c *Client) GrantPermission(ctx context.Context, policyHash [32]byte, agentID [32]byte, validFrom, validUntil *big.Int) (string, string, error) {
+	if c.simulated || c.policyRegistry == nil {
+		permID := crypto.Keccak256(append(policyHash[:], agentID[:]...))
+		return "0x" + hex.EncodeToString(permID), "simulated-mint-tx", nil
+	}
+
+	tx, err := c.transact(ctx, c.policyRegistry.BoundContract, "grantPermission", policyHash, agentID, validFrom, validUntil)
+	if err != nil {
+		return "", "", fmt.Errorf("grantPermission tx failed: %w", err)
+	}
+
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Extract permissionId from logs (first topic of PermissionGranted event)
+	if len(receipt.Logs) > 0 && len(receipt.Logs[0].Topics) > 1 {
+		permID := receipt.Logs[0].Topics[1]
+		return "0x" + hex.EncodeToString(permID[:]), receipt.TxHash.Hex(), nil
+	}
+
+	// Fallback: compute deterministically
+	permID := crypto.Keccak256(append(policyHash[:], agentID[:]...))
+	return "0x" + hex.EncodeToString(permID), receipt.TxHash.Hex(), nil
+}
+
+// SetConstraints pushes policy constraints to the PermissionEnforcer contract.
+func (c *Client) SetConstraints(
+	ctx context.Context,
+	permissionID [32]byte,
+	maxValuePerTx *big.Int,
+	maxDailyVolume *big.Int,
+	maxTxCount *big.Int,
+	allowedActions [][32]byte,
+	allowedTokens []common.Address,
+	allowedProtocols []common.Address,
+	allowedChains []*big.Int,
+) (string, error) {
+	if c.simulated || c.enforcer == nil {
+		c.logger.Info().
+			Str("permission_id", hex.EncodeToString(permissionID[:])).
+			Msg("simulated: would call setConstraints")
+		return "simulated-sync-tx", nil
+	}
+
+	tx, err := c.transact(ctx, c.enforcer.BoundContract, "setConstraints",
+		permissionID, maxValuePerTx, maxDailyVolume, maxTxCount,
+		allowedActions, allowedTokens, allowedProtocols, allowedChains,
+	)
+	if err != nil {
+		return "", fmt.Errorf("setConstraints tx failed: %w", err)
+	}
+
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+
+	return receipt.TxHash.Hex(), nil
+}
+
+// WaitForTx waits for a transaction to be mined and returns the receipt.
+func (c *Client) WaitForTx(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
+	receipt, err := bind.WaitMined(ctx, c.ethClient, tx)
+	if err != nil {
+		return nil, fmt.Errorf("waiting for tx %s: %w", tx.Hash().Hex(), err)
+	}
+	if receipt.Status == 0 {
+		return receipt, fmt.Errorf("tx %s reverted", tx.Hash().Hex())
+	}
+	c.logger.Info().
+		Str("tx_hash", tx.Hash().Hex()).
+		Uint64("block", receipt.BlockNumber.Uint64()).
+		Uint64("gas_used", receipt.GasUsed).
+		Msg("transaction mined")
+	return receipt, nil
+}
+
+// transact creates and sends a transaction to a bound contract method.
+func (c *Client) transact(ctx context.Context, contract *bind.BoundContract, method string, args ...interface{}) (*types.Transaction, error) {
+	// Create fresh TransactOpts for each transaction (avoids nonce reuse)
+	opts := *c.signer
+	opts.Context = ctx
+
+	tx, err := contract.Transact(&opts, method, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	c.logger.Info().
+		Str("method", method).
+		Str("tx_hash", tx.Hash().Hex()).
+		Msg("transaction sent")
+
+	return tx, nil
 }

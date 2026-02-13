@@ -3,9 +3,14 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
 import { mainnet, sepolia, baseSepolia } from 'wagmi/chains'
 
+const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ''
+if (!projectId && typeof window !== 'undefined') {
+  console.warn('[Guardrail] NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID not set — using demo project ID. Get one at https://cloud.walletconnect.com')
+}
+
 export const config = getDefaultConfig({
   appName: 'Guardrail',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo-project-id',
+  projectId: projectId || 'demo-project-id',
   chains: [mainnet, sepolia, baseSepolia],
   ssr: true,
 })

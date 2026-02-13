@@ -35,6 +35,7 @@ type BlockchainConfig struct {
 	SmartAccountFactoryAddress   string
 	EntryPointAddress            string
 	PermissionEnforcerAddress    string
+	DeployerPrivateKey           string
 }
 
 type JWTConfig struct {
@@ -73,6 +74,7 @@ func Load() *Config {
 			SmartAccountFactoryAddress:   getEnv("SMART_ACCOUNT_FACTORY_ADDRESS", ""),
 			EntryPointAddress:            getEnv("ENTRY_POINT_ADDRESS", "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"),
 			PermissionEnforcerAddress:    getEnv("PERMISSION_ENFORCER_ADDRESS", ""),
+			DeployerPrivateKey:           getEnv("DEPLOYER_PRIVATE_KEY", ""),
 		},
 		JWT: JWTConfig{
 			Secret:     getEnv("JWT_SECRET", "your-secret-key-change-in-production"),

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { useToast } from '@/hooks/useToast'
 
 const CHAIN_OPTIONS: { id: number; name: string }[] = [
   { id: 1, name: 'Ethereum Mainnet' },
@@ -54,6 +55,8 @@ export default function PoliciesPage() {
     definition: defaultDefinition,
   })
 
+  const { toast } = useToast()
+
   const { data: policiesList, isLoading } = useQuery({
     queryKey: ['policies'],
     queryFn: policies.list,
@@ -66,22 +69,36 @@ export default function PoliciesPage() {
       setIsCreateOpen(false)
       setShowAdvanced(false)
       setNewPolicy({ name: '', description: '', definition: defaultDefinition })
+      toast({ title: 'Policy created', variant: 'success' })
     },
+    onError: (e: Error) => toast({ title: 'Failed to create policy', description: e.message, variant: 'destructive' }),
   })
 
   const activateMutation = useMutation({
     mutationFn: policies.activate,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['policies'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] })
+      toast({ title: 'Policy activated', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to activate policy', description: e.message, variant: 'destructive' }),
   })
 
   const revokeMutation = useMutation({
     mutationFn: policies.revoke,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['policies'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] })
+      toast({ title: 'Policy revoked', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to revoke policy', description: e.message, variant: 'destructive' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: policies.delete,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['policies'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] })
+      toast({ title: 'Policy deleted', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to delete policy', description: e.message, variant: 'destructive' }),
   })
 
   const getStatusBadge = (status: string) => {

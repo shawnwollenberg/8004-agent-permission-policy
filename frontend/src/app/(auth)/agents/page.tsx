@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatDate, formatAddress } from '@/lib/utils'
-import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle, Rocket } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useAccount } from 'wagmi'
+import { useToast } from '@/hooks/useToast'
 
 export default function AgentsPage() {
   const queryClient = useQueryClient()
@@ -27,28 +28,65 @@ export default function AgentsPage() {
     wallet_type: 'eoa' as 'eoa' | 'smart_account',
   })
 
+  const { toast } = useToast()
+
   const { data: agentsList, isLoading } = useQuery({
     queryKey: ['agents'],
     queryFn: agents.list,
   })
 
+  const deployMutation = useMutation({
+    mutationFn: ({ agentId, signerAddress }: { agentId: string; signerAddress: string }) =>
+      agents.deploySmartAccount(agentId, { signer_address: signerAddress }),
+    onSuccess: (sa) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      toast({
+        title: 'Secure Account deployed',
+        description: `Address: ${sa.account_address.slice(0, 10)}...`,
+        variant: 'success',
+      })
+    },
+    onError: (e: Error) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      toast({
+        title: 'Deployment failed',
+        description: e.message + '. Retry from agent menu.',
+        variant: 'destructive',
+      })
+    },
+  })
+
   const createMutation = useMutation({
     mutationFn: agents.create,
-    onSuccess: () => {
+    onSuccess: (agent) => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       setIsCreateOpen(false)
+      const signerAddr = newAgent.agent_address || address || ''
       setNewAgent({ name: '', description: '', agent_address: '', wallet_type: 'eoa' })
+      toast({ title: 'Agent registered', variant: 'success' })
+      if (agent.wallet_type === 'smart_account' && signerAddr) {
+        deployMutation.mutate({ agentId: agent.id, signerAddress: signerAddr })
+      }
     },
+    onError: (e: Error) => toast({ title: 'Failed to register agent', description: e.message, variant: 'destructive' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: agents.delete,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      toast({ title: 'Agent deleted', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to delete agent', description: e.message, variant: 'destructive' }),
   })
 
   const registerOnchainMutation = useMutation({
     mutationFn: agents.registerOnchain,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      toast({ title: 'Agent registered on-chain', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to register on-chain', description: e.message, variant: 'destructive' }),
   })
 
   const upgradeMutation = useMutation({
@@ -57,7 +95,9 @@ export default function AgentsPage() {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       setIsUpgradeOpen(false)
       setUpgradeAgentId(null)
+      toast({ title: 'Upgraded to Secure Account', variant: 'success' })
     },
+    onError: (e: Error) => toast({ title: 'Failed to upgrade', description: e.message, variant: 'destructive' }),
   })
 
   const getStatusBadge = (status: string) => {
@@ -325,6 +365,22 @@ export default function AgentsPage() {
                           Register On-chain
                         </DropdownMenu.Item>
                       )}
+                      {agent.wallet_type === 'smart_account' && !agent.smart_account_address && (
+                        <DropdownMenu.Item
+                          className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
+                          onClick={() => {
+                            const signerAddr = agent.agent_address || address || ''
+                            if (signerAddr) {
+                              deployMutation.mutate({ agentId: agent.id, signerAddress: signerAddr })
+                            } else {
+                              toast({ title: 'No signer address available', variant: 'destructive' })
+                            }
+                          }}
+                        >
+                          <Rocket className="h-4 w-4" />
+                          Deploy Secure Account
+                        </DropdownMenu.Item>
+                      )}
                       {agent.wallet_type === 'eoa' && (
                         <DropdownMenu.Item
                           className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
@@ -361,17 +417,25 @@ export default function AgentsPage() {
                     <p className="text-xs text-muted-foreground">
                       {agent.wallet_type === 'smart_account' ? 'Secure Account' : 'External Wallet'}
                     </p>
-                    {agent.agent_address && (
+                    {agent.wallet_type === 'smart_account' && !agent.smart_account_address ? (
+                      <p className="text-sm font-mono text-amber-500 animate-pulse">
+                        Deploying...
+                      </p>
+                    ) : agent.wallet_type === 'smart_account' && agent.smart_account_address ? (
+                      <p className="text-sm font-mono">
+                        {formatAddress(agent.smart_account_address)}
+                      </p>
+                    ) : agent.agent_address ? (
                       <p className="text-sm font-mono">
                         {formatAddress(agent.agent_address)}
                       </p>
-                    )}
+                    ) : null}
                   </div>
-                  {agent.wallet_type === 'smart_account' && agent.smart_account_address && (
+                  {agent.wallet_type === 'smart_account' && agent.smart_account_address && agent.agent_address && (
                     <div>
                       <p className="text-xs text-muted-foreground">Signer</p>
                       <p className="text-sm font-mono">
-                        {formatAddress(agent.agent_address || '')}
+                        {formatAddress(agent.agent_address)}
                       </p>
                     </div>
                   )}

@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"encoding/json"
+	"math/big"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/erc8004/policy-saas/internal/api/middleware"
+	"github.com/erc8004/policy-saas/internal/blockchain"
 	"github.com/erc8004/policy-saas/internal/domain/audit"
 )
 
@@ -213,9 +216,41 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Implement actual ERC-8004 minting
-	// For now, simulate the minting
+	// Query permission details for on-chain minting
+	var agentID, policyID uuid.UUID
+	var validFrom time.Time
+	var validUntil *time.Time
+	var defJSON []byte
+	err = h.db.QueryRow(r.Context(),
+		`SELECT p.agent_id, p.policy_id, p.valid_from, p.valid_until, pol.definition
+		 FROM permissions p
+		 JOIN policies pol ON pol.id = p.policy_id
+		 WHERE p.id = $1 AND p.wallet_id = $2 AND p.status = 'active' AND p.minted_at IS NULL`,
+		permID, userID,
+	).Scan(&agentID, &policyID, &validFrom, &validUntil, &defJSON)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "permission not found or already minted")
+		return
+	}
 
+	// Compute on-chain permission parameters
+	contentHash := blockchain.PolicyContentHash(defJSON)
+	agentIDBytes := blockchain.UUIDToBytes32(agentID.String())
+	validFromBig := big.NewInt(validFrom.Unix())
+	validUntilBig := big.NewInt(0) // 0 = no expiry
+	if validUntil != nil {
+		validUntilBig = big.NewInt(validUntil.Unix())
+	}
+
+	// Mint on-chain (or simulate)
+	onchainTokenID, _, err := h.blockchainClient.GrantPermission(r.Context(), contentHash, agentIDBytes, validFromBig, validUntilBig)
+	if err != nil {
+		h.logger.Error().Err(err).Str("permission_id", permID.String()).Msg("on-chain minting failed")
+		respondError(w, http.StatusInternalServerError, "on-chain minting failed: "+err.Error())
+		return
+	}
+
+	// Update DB with on-chain token ID
 	var perm Permission
 	err = h.db.QueryRow(r.Context(),
 		`UPDATE permissions SET
@@ -223,7 +258,7 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 			minted_at = NOW()
 		 WHERE id = $2 AND wallet_id = $3 AND status = 'active' AND minted_at IS NULL
 		 RETURNING id, wallet_id, agent_id, policy_id, status, onchain_token_id, valid_from, valid_until, created_at, revoked_at, minted_at`,
-		"simulated-token-"+permID.String()[:8], permID, userID,
+		onchainTokenID, permID, userID,
 	).Scan(&perm.ID, &perm.WalletID, &perm.AgentID, &perm.PolicyID, &perm.Status, &perm.OnchainTokenID, &perm.ValidFrom, &perm.ValidUntil, &perm.CreatedAt, &perm.RevokedAt, &perm.MintedAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "permission not found or already minted")
@@ -236,8 +271,22 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 		PolicyID:     &perm.PolicyID,
 		PermissionID: &permID,
 		EventType:    "permission.minted",
-		Details:      map[string]interface{}{"token_id": perm.OnchainTokenID},
+		Details:      map[string]interface{}{"token_id": onchainTokenID, "simulated": h.blockchainClient.IsSimulated()},
 	})
 
+	// Best-effort constraint sync for smart account agents (Phase 4)
+	if h.onchainSyncer != nil {
+		if err := h.onchainSyncer.SyncConstraints(r.Context(), permID, perm.AgentID); err != nil {
+			h.logger.Error().Err(err).Msg("constraint sync failed (permission still minted)")
+		}
+	}
+
 	respondJSON(w, http.StatusOK, perm)
+}
+
+// unmarshalDefinition is a helper to parse policy definition JSON.
+func unmarshalDefinition(data []byte) (map[string]interface{}, error) {
+	var def map[string]interface{}
+	err := json.Unmarshal(data, &def)
+	return def, err
 }

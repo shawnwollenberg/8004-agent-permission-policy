@@ -4,6 +4,7 @@ import { useAccount, useSignMessage } from 'wagmi'
 import { SiweMessage } from 'siwe'
 import { useCallback, useEffect, useState } from 'react'
 import { auth } from '@/lib/api'
+import { useToast } from '@/hooks/useToast'
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -21,6 +22,7 @@ export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token')
@@ -40,22 +42,21 @@ export function useAuth() {
   useEffect(() => {
     const handleExpired = () => {
       setIsAuthenticated(false)
+      toast({ title: 'Session expired', description: 'Please sign in again.', variant: 'destructive' })
     }
     window.addEventListener('auth-expired', handleExpired)
     return () => window.removeEventListener('auth-expired', handleExpired)
-  }, [])
+  }, [toast])
 
   const signIn = useCallback(async () => {
     if (!address) {
-      console.error('No address available')
+      toast({ title: 'No wallet connected', description: 'Connect a wallet to sign in.', variant: 'destructive' })
       return
     }
 
     setIsLoading(true)
     try {
-      console.log('Getting nonce...')
       const { nonce } = await auth.getNonce()
-      console.log('Got nonce:', nonce)
 
       const message = new SiweMessage({
         domain: window.location.host,
@@ -68,25 +69,22 @@ export function useAuth() {
       })
 
       const messageString = message.prepareMessage()
-      console.log('Requesting signature...')
       const signature = await signMessageAsync({ message: messageString })
-      console.log('Got signature')
 
-      console.log('Verifying...')
       const { token } = await auth.verify(messageString, signature)
-      console.log('Verified, got token')
 
       localStorage.setItem('auth_token', token)
       localStorage.setItem('auth_address', address)
       setIsAuthenticated(true)
+      toast({ title: 'Signed in', variant: 'success' })
     } catch (error) {
-      console.error('Sign in failed:', error)
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      toast({ title: 'Sign in failed', description: message, variant: 'destructive' })
       setIsLoading(false)
-      // Don't re-throw, just log so button becomes clickable again
     } finally {
       setIsLoading(false)
     }
-  }, [address, signMessageAsync])
+  }, [address, signMessageAsync, toast])
 
   const signOut = useCallback(() => {
     localStorage.removeItem('auth_token')

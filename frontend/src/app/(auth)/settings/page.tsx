@@ -12,6 +12,7 @@ import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { Plus, Trash2, Key, Bell, Copy, Check } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Tabs from '@radix-ui/react-tabs'
+import { useToast } from '@/hooks/useToast'
 
 const webhookEventOptions = [
   { value: '*', label: 'All events' },
@@ -34,6 +35,8 @@ export default function SettingsPage() {
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState(false)
 
+  const { toast } = useToast()
+
   const { data: apiKeysList } = useQuery({
     queryKey: ['api-keys'],
     queryFn: apiKeys.list,
@@ -49,12 +52,18 @@ export default function SettingsPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] })
       setCreatedKey(data.key!)
+      toast({ title: 'API key created', variant: 'success' })
     },
+    onError: (e: Error) => toast({ title: 'Failed to create API key', description: e.message, variant: 'destructive' }),
   })
 
   const deleteKeyMutation = useMutation({
     mutationFn: apiKeys.delete,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-keys'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+      toast({ title: 'API key deleted', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to delete API key', description: e.message, variant: 'destructive' }),
   })
 
   const createWebhookMutation = useMutation({
@@ -63,12 +72,18 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['webhooks'] })
       setIsCreateWebhookOpen(false)
       setNewWebhook({ name: '', url: '', events: ['*'] })
+      toast({ title: 'Webhook created', variant: 'success' })
     },
+    onError: (e: Error) => toast({ title: 'Failed to create webhook', description: e.message, variant: 'destructive' }),
   })
 
   const deleteWebhookMutation = useMutation({
     mutationFn: webhooks.delete,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['webhooks'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['webhooks'] })
+      toast({ title: 'Webhook deleted', variant: 'success' })
+    },
+    onError: (e: Error) => toast({ title: 'Failed to delete webhook', description: e.message, variant: 'destructive' }),
   })
 
   const copyToClipboard = (text: string) => {
