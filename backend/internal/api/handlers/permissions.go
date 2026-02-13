@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"math/big"
 	"net/http"
@@ -221,20 +222,37 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 	var validFrom time.Time
 	var validUntil *time.Time
 	var defJSON []byte
+	var onchainHash *string
 	err = h.db.QueryRow(r.Context(),
-		`SELECT p.agent_id, p.policy_id, p.valid_from, p.valid_until, pol.definition
+		`SELECT p.agent_id, p.policy_id, p.valid_from, p.valid_until, pol.definition, pol.onchain_hash
 		 FROM permissions p
 		 JOIN policies pol ON pol.id = p.policy_id
 		 WHERE p.id = $1 AND p.wallet_id = $2 AND p.status = 'active' AND p.minted_at IS NULL`,
 		permID, userID,
-	).Scan(&agentID, &policyID, &validFrom, &validUntil, &defJSON)
+	).Scan(&agentID, &policyID, &validFrom, &validUntil, &defJSON, &onchainHash)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "permission not found or already minted")
 		return
 	}
 
-	// Compute on-chain permission parameters
-	contentHash := blockchain.PolicyContentHash(defJSON)
+	// Use the on-chain policy ID if available, otherwise fall back to content hash
+	var policyHashBytes [32]byte
+	if onchainHash != nil && *onchainHash != "" {
+		// Decode the hex on-chain policy ID into [32]byte
+		hashStr := *onchainHash
+		if len(hashStr) > 2 && hashStr[:2] == "0x" {
+			hashStr = hashStr[2:]
+		}
+		decoded, decErr := hex.DecodeString(hashStr)
+		if decErr == nil && len(decoded) == 32 {
+			copy(policyHashBytes[:], decoded)
+		} else {
+			policyHashBytes = blockchain.PolicyContentHash(defJSON)
+		}
+	} else {
+		policyHashBytes = blockchain.PolicyContentHash(defJSON)
+	}
+
 	agentIDBytes := blockchain.UUIDToBytes32(agentID.String())
 	validFromBig := big.NewInt(validFrom.Unix())
 	validUntilBig := big.NewInt(0) // 0 = no expiry
@@ -243,7 +261,7 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mint on-chain (or simulate)
-	onchainTokenID, _, err := h.blockchainClient.GrantPermission(r.Context(), contentHash, agentIDBytes, validFromBig, validUntilBig)
+	onchainTokenID, _, err := h.blockchainClient.GrantPermission(r.Context(), policyHashBytes, agentIDBytes, validFromBig, validUntilBig)
 	if err != nil {
 		h.logger.Error().Err(err).Str("permission_id", permID.String()).Msg("on-chain minting failed")
 		respondError(w, http.StatusInternalServerError, "on-chain minting failed: "+err.Error())

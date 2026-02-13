@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatDate } from '@/lib/utils'
+import { CopyableAddress } from '@/components/ui/copyable-address'
 import {
   Plus,
   MoreVertical,
@@ -615,6 +616,12 @@ export default function PoliciesPage() {
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Expires</p>
                       <p className="text-sm">{formatDate(policy.definition.duration.validUntil)}</p>
+                    </div>
+                  )}
+                  {policy.onchain_hash && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">On-chain Policy ID</p>
+                      <CopyableAddress address={policy.onchain_hash} />
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">

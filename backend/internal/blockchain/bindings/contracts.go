@@ -42,6 +42,7 @@ func (c *IdentityRegistry) RegisterAgent(opts *bind.TransactOpts, agentId [32]by
 // --- PolicyRegistry ---
 
 const policyRegistryABI = `[
+	{"type":"function","name":"createPolicy","inputs":[{"name":"contentHash","type":"bytes32"}],"outputs":[{"name":"policyId","type":"bytes32"}],"stateMutability":"nonpayable"},
 	{"type":"function","name":"grantPermission","inputs":[{"name":"policyId","type":"bytes32"},{"name":"agentId","type":"bytes32"},{"name":"validFrom","type":"uint256"},{"name":"validUntil","type":"uint256"}],"outputs":[{"name":"permissionId","type":"bytes32"}],"stateMutability":"nonpayable"},
 	{"type":"function","name":"getPermission","inputs":[{"name":"permissionId","type":"bytes32"}],"outputs":[{"name":"policyId","type":"bytes32"},{"name":"agentId","type":"bytes32"},{"name":"owner","type":"address"},{"name":"validFrom","type":"uint256"},{"name":"validUntil","type":"uint256"},{"name":"active","type":"bool"}],"stateMutability":"view"},
 	{"type":"function","name":"isPermissionValid","inputs":[{"name":"permissionId","type":"bytes32"}],"outputs":[{"name":"","type":"bool"}],"stateMutability":"view"}

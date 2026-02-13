@@ -254,6 +254,36 @@ func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, a
 	return addr.Hex(), receipt.TxHash.Hex(), nil
 }
 
+// CreatePolicy registers a policy on-chain in the PolicyRegistry.
+// Returns the on-chain policy ID (bytes32) as hex string and the tx hash.
+func (c *Client) CreatePolicy(ctx context.Context, contentHash [32]byte) (string, string, error) {
+	if c.simulated || c.policyRegistry == nil {
+		policyID := crypto.Keccak256(append([]byte("policy:"), contentHash[:]...))
+		txHash := sha256.Sum256(append([]byte("createPolicy:"), policyID...))
+		return "0x" + hex.EncodeToString(policyID), "0x" + hex.EncodeToString(txHash[:]), nil
+	}
+
+	tx, err := c.transact(ctx, c.policyRegistry.BoundContract, "createPolicy", contentHash)
+	if err != nil {
+		return "", "", fmt.Errorf("createPolicy tx failed: %w", err)
+	}
+
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Extract policyId from logs (PolicyCreated event, first indexed topic after event sig)
+	if len(receipt.Logs) > 0 && len(receipt.Logs[0].Topics) > 1 {
+		policyID := receipt.Logs[0].Topics[1]
+		return "0x" + hex.EncodeToString(policyID[:]), receipt.TxHash.Hex(), nil
+	}
+
+	// Fallback: compute deterministically
+	policyID := crypto.Keccak256(append([]byte("policy:"), contentHash[:]...))
+	return "0x" + hex.EncodeToString(policyID), receipt.TxHash.Hex(), nil
+}
+
 // GrantPermission registers a permission on-chain in the PolicyRegistry.
 // Returns the on-chain permission ID (bytes32) as hex string and the tx hash.
 func (c *Client) GrantPermission(ctx context.Context, policyHash [32]byte, agentID [32]byte, validFrom, validUntil *big.Int) (string, string, error) {

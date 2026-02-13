@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/erc8004/policy-saas/internal/api/middleware"
+	"github.com/erc8004/policy-saas/internal/blockchain"
 	"github.com/erc8004/policy-saas/internal/domain/audit"
 	"github.com/erc8004/policy-saas/internal/domain/policy"
 )
@@ -283,13 +284,39 @@ func (h *Handlers) ActivatePolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var p Policy
+	// Get the policy definition before activating (needed for on-chain hash)
 	var defBytes []byte
 	err = h.db.QueryRow(r.Context(),
-		`UPDATE policies SET status = 'active', activated_at = NOW(), updated_at = NOW()
-		 WHERE id = $1 AND wallet_id = $2 AND status = 'draft'
-		 RETURNING id, wallet_id, name, description, definition, status, version, onchain_hash, created_at, updated_at, activated_at, revoked_at`,
+		`SELECT definition FROM policies WHERE id = $1 AND wallet_id = $2 AND status = 'draft'`,
 		policyID, userID,
+	).Scan(&defBytes)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "policy not found or already active")
+		return
+	}
+
+	// Register the policy on-chain via PolicyRegistry.createPolicy(contentHash)
+	contentHash := blockchain.PolicyContentHash(defBytes)
+	onchainPolicyID, txHash, err := h.blockchainClient.CreatePolicy(r.Context(), contentHash)
+	if err != nil {
+		h.logger.Error().Err(err).Str("policy_id", policyID.String()).Msg("on-chain policy creation failed")
+		respondError(w, http.StatusInternalServerError, "on-chain policy creation failed: "+err.Error())
+		return
+	}
+
+	h.logger.Info().
+		Str("policy_id", policyID.String()).
+		Str("onchain_policy_id", onchainPolicyID).
+		Str("tx_hash", txHash).
+		Msg("policy registered on-chain")
+
+	// Activate in DB and store the on-chain hash
+	var p Policy
+	err = h.db.QueryRow(r.Context(),
+		`UPDATE policies SET status = 'active', activated_at = NOW(), updated_at = NOW(), onchain_hash = $1
+		 WHERE id = $2 AND wallet_id = $3 AND status = 'draft'
+		 RETURNING id, wallet_id, name, description, definition, status, version, onchain_hash, created_at, updated_at, activated_at, revoked_at`,
+		onchainPolicyID, policyID, userID,
 	).Scan(&p.ID, &p.WalletID, &p.Name, &p.Description, &defBytes, &p.Status, &p.Version, &p.OnchainHash, &p.CreatedAt, &p.UpdatedAt, &p.ActivatedAt, &p.RevokedAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "policy not found or already active")
@@ -301,6 +328,7 @@ func (h *Handlers) ActivatePolicy(w http.ResponseWriter, r *http.Request) {
 		WalletID:  userID,
 		PolicyID:  &policyID,
 		EventType: "policy.activated",
+		Details:   map[string]interface{}{"onchain_hash": onchainPolicyID, "tx_hash": txHash, "simulated": h.blockchainClient.IsSimulated()},
 	})
 
 	respondJSON(w, http.StatusOK, p)
