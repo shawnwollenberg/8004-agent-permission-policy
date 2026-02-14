@@ -62,8 +62,8 @@ export default function AgentsPage() {
     onSuccess: (agent) => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       setIsCreateOpen(false)
-      const signerAddr = newAgent.agent_address || address || ''
-      setNewAgent({ name: '', description: '', agent_address: '', wallet_type: 'eoa' })
+      const signerAddr = agent.wallet_type === 'smart_account' ? (address || '') : (newAgent.agent_address || address || '')
+      setNewAgent({ name: '', description: '', agent_address: '', wallet_type: 'smart_account' })
       toast({ title: 'Agent registered', variant: 'success' })
       if (agent.wallet_type === 'smart_account' && signerAddr) {
         deployMutation.mutate({ agentId: agent.id, signerAddress: signerAddr })
@@ -137,7 +137,11 @@ export default function AgentsPage() {
       wallet_type: newAgent.wallet_type,
     }
     if (newAgent.description) data.description = newAgent.description
-    if (newAgent.agent_address) data.agent_address = newAgent.agent_address
+    if (newAgent.wallet_type === 'smart_account') {
+      if (address) data.agent_address = address
+    } else {
+      if (newAgent.agent_address) data.agent_address = newAgent.agent_address
+    }
     createMutation.mutate(data)
   }
 
@@ -174,7 +178,7 @@ export default function AgentsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => setNewAgent({ ...newAgent, wallet_type: 'eoa' })}
+                      onClick={() => setNewAgent({ ...newAgent, wallet_type: 'eoa', agent_address: '' })}
                       className={`rounded-lg border-2 p-3 text-left transition-colors ${
                         newAgent.wallet_type === 'eoa'
                           ? 'border-primary bg-primary/5'
@@ -232,24 +236,33 @@ export default function AgentsPage() {
                     placeholder="Automated trading agent for DeFi"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="agent_address">
-                    {newAgent.wallet_type === 'smart_account' ? 'Signer Address' : 'Agent Address'} (optional)
-                  </Label>
-                  <Input
-                    id="agent_address"
-                    value={newAgent.agent_address}
-                    onChange={(e) =>
-                      setNewAgent({ ...newAgent, agent_address: e.target.value })
-                    }
-                    placeholder="0x..."
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {newAgent.wallet_type === 'smart_account'
-                      ? 'The wallet that will sign transactions. A Guardrail Secure Account will be deployed.'
-                      : 'The wallet address the agent will use for transactions'}
-                  </p>
-                </div>
+
+                {newAgent.wallet_type === 'smart_account' ? (
+                  <div>
+                    <Label>Signer Address</Label>
+                    <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                      {address || 'Connect wallet to continue'}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Your connected wallet will sign transactions for the Secure Account.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <Label htmlFor="agent_address">Agent Wallet Address (optional)</Label>
+                    <Input
+                      id="agent_address"
+                      value={newAgent.agent_address}
+                      onChange={(e) =>
+                        setNewAgent({ ...newAgent, agent_address: e.target.value })
+                      }
+                      placeholder="0x..."
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      The wallet address the agent uses for transactions. Leave empty to assign later.
+                    </p>
+                  </div>
+                )}
 
                 {newAgent.wallet_type === 'smart_account' && (
                   <div className="rounded-md bg-muted p-3">
