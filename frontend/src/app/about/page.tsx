@@ -393,13 +393,19 @@ else:
                     <div>
                       <p className="text-muted-foreground mb-1">PermissionEnforcer</p>
                       <code className="text-xs bg-background px-2 py-1 rounded">
-                        0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3
+                        0xBe1cd378Ec32Feb71851B2EFbb0D9c6635cc22DF
                       </code>
                     </div>
                     <div>
                       <p className="text-muted-foreground mb-1">AgentAccountFactory</p>
                       <code className="text-xs bg-background px-2 py-1 rounded">
-                        0x28bd44158F7A824eB20330D761035cCb7D1D2AD5
+                        0xA6F9dA39086CD7142c1494B062D70c8fB7e3896f
+                      </code>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1">PriceOracle</p>
+                      <code className="text-xs bg-background px-2 py-1 rounded">
+                        0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8
                       </code>
                     </div>
                   </div>
