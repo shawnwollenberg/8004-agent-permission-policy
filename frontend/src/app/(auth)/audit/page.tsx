@@ -81,10 +81,19 @@ export default function AuditPage() {
     return policiesList?.find((p) => p.id === policyId)?.name || policyId.slice(0, 8)
   }
 
-  const handleExport = (format: 'json' | 'csv') => {
+  const handleExport = async (format: 'json' | 'csv') => {
     const token = localStorage.getItem('auth_token')
     const url = audit.export(format)
-    window.open(`${url}&token=${token}`, '_blank')
+    const res = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) return
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `audit_logs.${format}`
+    a.click()
+    URL.revokeObjectURL(a.href)
   }
 
   return (
