@@ -34,15 +34,16 @@ Six main components:
 
 5. **Audit & Activity Log** (`backend/internal/domain/audit/`) - Immutable policy history, execution trails, revocation events, enforcement events, smart account deployments.
 
-6. **Dashboard & API** (`frontend/`, `backend/internal/api/`) - Human UI for permission management with wallet type selection (EOA vs Smart Account), enforcement badges, and upgrade flow. Machine API for real-time validation with enforcement context.
+6. **Dashboard & API** (`frontend/`, `backend/internal/api/`) - Human UI for permission management with wallet type selection (EOA vs Smart Account), enforcement badges, upgrade flow, and bot signer generation. Machine API for real-time validation with enforcement context.
 
 ## Database Schema
 
-Key tables: `wallets`, `agents` (with `wallet_type` and `enforcement_level`), `smart_accounts`, `policies`, `permissions`, `validation_requests`, `enforcement_events`, `audit_logs`, `webhooks`, `api_keys`.
+Key tables: `wallets`, `agents` (with `wallet_type` and `enforcement_level`), `smart_accounts` (with `signer_type`: `'wallet'` or `'generated'`), `policies`, `permissions`, `validation_requests`, `enforcement_events`, `audit_logs`, `webhooks`, `api_keys`.
 
 Migrations in `backend/internal/database/migrations/`:
 - `000001_init` — Core tables
 - `000002_smart_accounts` — Smart account support, enforcement events, wallet_type/enforcement_level columns
+- `000003_signer_type` — Adds `signer_type` column to `smart_accounts` for bot-generated signers
 
 ## Development Commands
 
@@ -86,6 +87,7 @@ EntryPoint v0.6 canonical address: `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`
 - Backend-initiated on-chain sync — when policies change, backend pushes constraints to chain
 - Backward-compatible `actionData` encoding — PermissionEnforcer supports both old (64-byte: value, token) and new (128-byte: value, token, protocol, chainId) formats
 - Database connection retries on startup (5 attempts with backoff) to handle Railway cold starts
+- Bot signer generation — client-side keypair generation via viem for bots that need raw private keys. Private key shown once after smart account deployment, never stored. `signer_type` column distinguishes `'wallet'` (connected wallet) from `'generated'` (bot keypair)
 
 ## Environment Variables (Backend)
 

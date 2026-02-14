@@ -121,10 +121,12 @@ This quietly sets you up for **compliance + observability later**.
 ### **5. Dashboard & API**
 
 - Human UI: define + revoke permissions
-    
+
 - Machine API: validate permissions in real-time
-    
+
 - Webhooks: notify on violations or expiry
+
+- Bot signer generation: generate a dedicated keypair for autonomous bots during agent creation. Private key shown once, never stored. Agents track signer type (`wallet` vs `generated`) for UI and audit purposes.
     
 
 ---

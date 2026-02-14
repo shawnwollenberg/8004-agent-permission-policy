@@ -214,13 +214,21 @@ The backend includes Railway configuration files (`railway.toml` and `nixpacks.t
 3. Choose a wallet type:
    - **EOA Wallet** — Advisory mode (monitoring + alerts only)
    - **Smart Account** (Recommended) — Enforced mode (policies enforced on-chain)
-4. Fill in:
+4. For **Smart Account**, choose a signer source:
+   - **Connected Wallet** — Your MetaMask wallet signs transactions (default)
+   - **Generate Bot Signer** — Generate a dedicated keypair for your bot:
+     1. Click **Generate Key** to create a fresh keypair client-side
+     2. The generated address appears as the signer
+     3. After registration and deployment, a dialog shows the private key **one time**
+     4. Copy or download the `.env` file — the key is never stored and cannot be recovered
+5. Fill in:
    - Name: "My Trading Bot"
    - Description: "Automated DeFi trader"
-   - Agent/Signer Address: (optional) The EOA address. For smart accounts, this becomes the signer.
-5. Click **Register Agent**
+6. Click **Register Agent**
 
 For smart account agents, a new ERC-4337 smart account is deployed and policies are enforced on-chain — transactions violating policy revert before execution.
+
+Agents with generated bot signers show a "Generated" badge and expandable "Bot Connection Details" on their card (smart account address, signer address, EntryPoint, chain ID).
 
 ### 3. Create a Policy
 
@@ -325,10 +333,27 @@ curl -X POST http://localhost:8080/api/v1/validate/simulate \
    - `policy.activated`
    - `permission.created`
    - `validation.request`
-   - `agent.smart_account_deployed` (if you created a smart account agent)
+   - `agent.smart_account_deployed` (if you created a smart account agent; includes `signer_type`)
    - `agent.upgraded_to_smart_account` (if you upgraded an EOA agent)
 
-### 8. Upgrade an EOA Agent to Smart Account (Optional)
+### 8. Create a Bot Signer Agent (Optional)
+
+1. Navigate to **Agents** page
+2. Click **Register Agent**
+3. Select **Secure Account** as wallet type
+4. Under **Signer Source**, select **Generate Bot Signer**
+5. Click **Generate Key** — a new address appears
+6. Fill in agent name and click **Register Agent**
+7. After deployment completes, the **Private Key Reveal Dialog** appears:
+   - Click the eye icon to reveal the full private key
+   - Click **Download .env file** to save connection details
+   - Click **I've Saved the Key** to close (this clears the key from memory)
+8. The agent card now shows:
+   - A "Generated" badge next to the signer address
+   - An expandable "Bot Connection Details" section with all addresses your bot needs
+9. Give the downloaded `.env` file to your bot for programmatic signing
+
+### 9. Upgrade an EOA Agent to Smart Account (Optional)
 
 1. Navigate to **Agents** page
 2. Find an EOA agent (shown with amber "Advisory" badge)
@@ -340,14 +365,14 @@ curl -X POST http://localhost:8080/api/v1/validate/simulate \
 5. Click **Confirm Upgrade**
 6. The agent card should now show a green "Enforced" badge
 
-### 9. Test Webhooks (Optional)
+### 10. Test Webhooks (Optional)
 
 1. Go to **Settings** → **Webhooks**
 2. Create a webhook pointing to https://webhook.site (free testing service)
 3. Perform actions (create agent, validate, etc.)
 4. Check webhook.site for received events
 
-### 10. Create API Key for Programmatic Access
+### 11. Create API Key for Programmatic Access
 
 1. Go to **Settings** → **API Keys**
 2. Click **Create Key**

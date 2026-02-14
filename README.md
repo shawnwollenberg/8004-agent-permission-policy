@@ -13,6 +13,12 @@ erc8004-policy-saas/
 └── frontend/         # Next.js 15 dashboard
 ```
 
+### Bot Signer Generation
+
+When creating a Secure Account agent, users can choose between:
+- **Connected Wallet** — Use the connected MetaMask wallet as the signer (default)
+- **Generate Bot Signer** — Generate a fresh keypair client-side for bots that need a raw private key. The private key is shown once after deployment and never stored.
+
 ### Enforcement Tiers
 
 Agents operate in one of two enforcement modes:
@@ -75,8 +81,8 @@ npm run dev
 - `POST /api/v1/agents` - Register agent (supports `wallet_type`: `eoa` or `smart_account`)
 - `GET /api/v1/agents` - List agents
 - `POST /api/v1/agents/{id}/register-onchain` - Register on ERC-8004
-- `POST /api/v1/agents/{id}/deploy-smart-account` - Deploy ERC-4337 smart account
-- `GET /api/v1/agents/{id}/smart-account` - Get smart account details
+- `POST /api/v1/agents/{id}/deploy-smart-account` - Deploy ERC-4337 smart account (accepts optional `signer_type`: `wallet` or `generated`)
+- `GET /api/v1/agents/{id}/smart-account` - Get smart account details (includes `signer_type`)
 - `POST /api/v1/agents/{id}/upgrade-to-smart-account` - Upgrade EOA agent to enforced smart account (one-way)
 
 ### Policies
