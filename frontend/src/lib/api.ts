@@ -172,7 +172,10 @@ export interface Permission {
 
 export const permissions = {
   list: (params?: { agent_id?: string; policy_id?: string }) => {
-    const query = new URLSearchParams(params as Record<string, string>).toString()
+    const clean = Object.fromEntries(
+      Object.entries(params || {}).filter(([, v]) => v != null && v !== '')
+    )
+    const query = new URLSearchParams(clean as Record<string, string>).toString()
     return fetchApi<Permission[]>(`/api/v1/permissions${query ? `?${query}` : ''}`)
   },
   get: (id: string) => fetchApi<Permission>(`/api/v1/permissions/${id}`),
@@ -243,11 +246,17 @@ export const audit = {
     start_date?: string
     end_date?: string
   }) => {
-    const query = new URLSearchParams(params as Record<string, string>).toString()
+    const clean = Object.fromEntries(
+      Object.entries(params || {}).filter(([, v]) => v != null && v !== '')
+    )
+    const query = new URLSearchParams(clean as Record<string, string>).toString()
     return fetchApi<AuditLog[]>(`/api/v1/audit${query ? `?${query}` : ''}`)
   },
   export: (format: 'json' | 'csv', params?: { start_date?: string; end_date?: string }) => {
-    const query = new URLSearchParams({ format, ...params } as Record<string, string>).toString()
+    const clean = Object.fromEntries(
+      Object.entries({ format, ...params }).filter(([, v]) => v != null && v !== '')
+    )
+    const query = new URLSearchParams(clean as Record<string, string>).toString()
     return `${API_BASE_URL}/api/v1/audit/export?${query}`
   },
 }
