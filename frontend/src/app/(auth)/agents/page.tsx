@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { agents, type Agent } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -10,12 +10,27 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatDate } from '@/lib/utils'
 import { CopyableAddress } from '@/components/ui/copyable-address'
-import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { useAccount } from 'wagmi'
+import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { parseEther, formatEther } from 'viem'
 import { useToast } from '@/hooks/useToast'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
+
+const EXECUTE_ABI = [
+  {
+    name: 'execute',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'target', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'data', type: 'bytes' },
+    ],
+    outputs: [],
+  },
+] as const
 
 export default function AgentsPage() {
   const queryClient = useQueryClient()
@@ -38,7 +53,24 @@ export default function AgentsPage() {
   const [revealSmartAccountAddress, setRevealSmartAccountAddress] = useState<string | null>(null)
   const [expandedBotDetails, setExpandedBotDetails] = useState<Set<string>>(new Set())
 
+  // Withdraw state
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
+  const [withdrawAgent, setWithdrawAgent] = useState<Agent | null>(null)
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+
   const { toast } = useToast()
+
+  // Withdraw hooks
+  const { data: smartAccountBalance, refetch: refetchBalance } = useBalance({
+    address: withdrawAgent?.smart_account_address as `0x${string}` | undefined,
+    query: { enabled: !!withdrawAgent?.smart_account_address },
+  })
+
+  const { writeContract, data: withdrawTxHash, isPending: isWithdrawPending, reset: resetWithdraw } = useWriteContract()
+
+  const { isLoading: isWithdrawConfirming, isSuccess: isWithdrawConfirmed } = useWaitForTransactionReceipt({
+    hash: withdrawTxHash,
+  })
 
   const { data: agentsList, isLoading } = useQuery({
     queryKey: ['agents'],
@@ -229,6 +261,50 @@ export default function AgentsPage() {
       return next
     })
   }
+
+  const handleOpenWithdraw = (agent: Agent) => {
+    setWithdrawAgent(agent)
+    setWithdrawAmount('')
+    resetWithdraw()
+    setWithdrawOpen(true)
+    // Refetch balance when opening
+    setTimeout(() => refetchBalance(), 100)
+  }
+
+  const handleWithdraw = () => {
+    if (!withdrawAgent?.smart_account_address || !address || !withdrawAmount) return
+    try {
+      const amountWei = parseEther(withdrawAmount)
+      writeContract({
+        address: withdrawAgent.smart_account_address as `0x${string}`,
+        abi: EXECUTE_ABI,
+        functionName: 'execute',
+        args: [address, amountWei, '0x'],
+      })
+    } catch {
+      toast({ title: 'Invalid amount', variant: 'destructive' })
+    }
+  }
+
+  const handleCloseWithdraw = () => {
+    setWithdrawOpen(false)
+    setWithdrawAgent(null)
+    setWithdrawAmount('')
+    resetWithdraw()
+  }
+
+  // Auto-close and notify on successful withdraw
+  useEffect(() => {
+    if (isWithdrawConfirmed && withdrawOpen) {
+      toast({ title: 'Withdrawal confirmed', description: `Sent to your wallet`, variant: 'success' })
+      setWithdrawOpen(false)
+      setWithdrawAgent(null)
+      setWithdrawAmount('')
+      resetWithdraw()
+      refetchBalance()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWithdrawConfirmed])
 
   return (
     <div className="space-y-6">
@@ -578,6 +654,88 @@ export default function AgentsPage() {
         </Dialog.Portal>
       </Dialog.Root>
 
+      {/* Withdraw Dialog */}
+      <Dialog.Root open={withdrawOpen} onOpenChange={(open) => { if (!open) handleCloseWithdraw() }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg">
+            <Dialog.Title className="text-lg font-semibold flex items-center gap-2">
+              <ArrowDownToLine className="h-5 w-5" />
+              Withdraw from Secure Account
+            </Dialog.Title>
+            <Dialog.Description className="text-sm text-muted-foreground mt-1 mb-4">
+              Send ETH from the smart account back to your connected wallet.
+            </Dialog.Description>
+
+            {withdrawAgent && (
+              <div className="space-y-4">
+                <div className="rounded-md bg-muted p-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">From</span>
+                    <span className="font-mono text-xs">{withdrawAgent.smart_account_address?.slice(0, 8)}...{withdrawAgent.smart_account_address?.slice(-6)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">To</span>
+                    <span className="font-mono text-xs">{address?.slice(0, 8)}...{address?.slice(-6)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Balance</span>
+                    <span className="font-mono">
+                      {smartAccountBalance ? `${parseFloat(formatEther(smartAccountBalance.value)).toFixed(6)} ETH` : 'Loading...'}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="withdraw-amount">Amount (ETH)</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      id="withdraw-amount"
+                      type="text"
+                      inputMode="decimal"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="0.01"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (smartAccountBalance) {
+                          setWithdrawAmount(formatEther(smartAccountBalance.value))
+                        }
+                      }}
+                      disabled={!smartAccountBalance}
+                    >
+                      Max
+                    </Button>
+                  </div>
+                </div>
+
+                {withdrawTxHash && !isWithdrawConfirmed && (
+                  <div className="rounded-md border bg-muted/50 p-3 text-sm">
+                    <p className="text-muted-foreground">Transaction submitted, waiting for confirmation...</p>
+                    <p className="font-mono text-xs mt-1 break-all">{withdrawTxHash}</p>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button variant="outline" onClick={handleCloseWithdraw}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleWithdraw}
+                    disabled={!withdrawAmount || isWithdrawPending || isWithdrawConfirming || !smartAccountBalance || smartAccountBalance.value === BigInt(0)}
+                  >
+                    {isWithdrawPending ? 'Confirm in wallet...' : isWithdrawConfirming ? 'Confirming...' : 'Withdraw'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
       {isLoading ? (
         <div className="text-center py-8">Loading...</div>
       ) : agentsList?.length === 0 ? (
@@ -641,6 +799,15 @@ export default function AgentsPage() {
                         >
                           <Rocket className="h-4 w-4" />
                           Deploy Secure Account
+                        </DropdownMenu.Item>
+                      )}
+                      {agent.wallet_type === 'smart_account' && agent.smart_account_address && agent.signer_type !== 'generated' && (
+                        <DropdownMenu.Item
+                          className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
+                          onClick={() => handleOpenWithdraw(agent)}
+                        >
+                          <ArrowDownToLine className="h-4 w-4" />
+                          Withdraw
                         </DropdownMenu.Item>
                       )}
                       {agent.wallet_type === 'eoa' && (
