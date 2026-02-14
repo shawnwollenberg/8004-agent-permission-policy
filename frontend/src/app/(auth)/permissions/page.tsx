@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
-import { Plus, MoreVertical, Trash2, Coins, Key } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Coins, Key, Copy, Check } from 'lucide-react'
 import Link from 'next/link'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -22,6 +22,14 @@ export default function PermissionsPage() {
     agent_id: '',
     policy_id: '',
   })
+
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedId(id)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   const { data: permissionsList, isLoading } = useQuery({
     queryKey: ['permissions'],
@@ -271,6 +279,15 @@ export default function PermissionsPage() {
                           Revoke
                         </DropdownMenu.Item>
                       )}
+                      {perm.status === 'revoked' && (
+                        <DropdownMenu.Item
+                          className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-muted"
+                          onClick={() => deleteMutation.mutate(perm.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </DropdownMenu.Item>
+                      )}
                     </DropdownMenu.Content>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Root>
@@ -302,9 +319,18 @@ export default function PermissionsPage() {
                   {perm.onchain_token_id && (
                     <div>
                       <p className="text-xs text-muted-foreground">Token ID</p>
-                      <p className="text-sm font-mono truncate">
-                        {perm.onchain_token_id}
-                      </p>
+                      <button
+                        className="flex items-center gap-1 text-sm font-mono truncate max-w-full hover:text-primary transition-colors cursor-pointer"
+                        onClick={() => copyToClipboard(perm.onchain_token_id!, perm.id)}
+                        title="Click to copy"
+                      >
+                        <span className="truncate">{perm.onchain_token_id}</span>
+                        {copiedId === perm.id ? (
+                          <Check className="h-3 w-3 flex-shrink-0 text-green-500" />
+                        ) : (
+                          <Copy className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">

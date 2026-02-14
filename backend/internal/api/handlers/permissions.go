@@ -203,25 +203,59 @@ func (h *Handlers) DeletePermission(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Check current status to decide action
+	var currentStatus string
 	var agentID, policyID uuid.UUID
 	err = h.db.QueryRow(r.Context(),
-		`UPDATE permissions SET status = 'revoked', revoked_at = NOW()
-		 WHERE id = $1 AND wallet_id = $2 AND status = 'active'
-		 RETURNING agent_id, policy_id`,
+		`SELECT status, agent_id, policy_id FROM permissions WHERE id = $1 AND wallet_id = $2`,
 		permID, userID,
-	).Scan(&agentID, &policyID)
+	).Scan(&currentStatus, &agentID, &policyID)
 	if err != nil {
-		respondError(w, http.StatusNotFound, "permission not found or already revoked")
+		respondError(w, http.StatusNotFound, "permission not found")
 		return
 	}
 
-	h.auditLogger.Log(r.Context(), audit.Event{
-		WalletID:     userID,
-		AgentID:      &agentID,
-		PolicyID:     &policyID,
-		PermissionID: &permID,
-		EventType:    "permission.revoked",
-	})
+	if currentStatus == "active" {
+		// Revoke active permission (soft delete)
+		_, err = h.db.Exec(r.Context(),
+			`UPDATE permissions SET status = 'revoked', revoked_at = NOW()
+			 WHERE id = $1 AND wallet_id = $2 AND status = 'active'`,
+			permID, userID,
+		)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to revoke permission")
+			return
+		}
+
+		h.auditLogger.Log(r.Context(), audit.Event{
+			WalletID:     userID,
+			AgentID:      &agentID,
+			PolicyID:     &policyID,
+			PermissionID: &permID,
+			EventType:    "permission.revoked",
+		})
+	} else if currentStatus == "revoked" {
+		// Hard delete revoked permission
+		_, err = h.db.Exec(r.Context(),
+			`DELETE FROM permissions WHERE id = $1 AND wallet_id = $2 AND status = 'revoked'`,
+			permID, userID,
+		)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to delete permission")
+			return
+		}
+
+		h.auditLogger.Log(r.Context(), audit.Event{
+			WalletID:     userID,
+			AgentID:      &agentID,
+			PolicyID:     &policyID,
+			PermissionID: &permID,
+			EventType:    "permission.deleted",
+		})
+	} else {
+		respondError(w, http.StatusBadRequest, "permission cannot be deleted in current state")
+		return
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -283,12 +317,19 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mint on-chain (or simulate)
-	onchainTokenID, _, err := h.blockchainClient.GrantPermission(r.Context(), policyHashBytes, agentIDBytes, validFromBig, validUntilBig)
+	onchainTokenID, txHash, err := h.blockchainClient.GrantPermission(r.Context(), policyHashBytes, agentIDBytes, validFromBig, validUntilBig)
 	if err != nil {
 		h.logger.Error().Err(err).Str("permission_id", permID.String()).Msg("on-chain minting failed")
 		respondError(w, http.StatusInternalServerError, "on-chain minting failed: "+err.Error())
 		return
 	}
+
+	h.logger.Info().
+		Str("permission_id", permID.String()).
+		Str("onchain_token_id", onchainTokenID).
+		Str("tx_hash", txHash).
+		Bool("simulated", h.blockchainClient.IsSimulated()).
+		Msg("permission minted on-chain")
 
 	// Update DB with on-chain token ID
 	var perm Permission
@@ -311,7 +352,7 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 		PolicyID:     &perm.PolicyID,
 		PermissionID: &permID,
 		EventType:    "permission.minted",
-		Details:      map[string]interface{}{"token_id": onchainTokenID, "simulated": h.blockchainClient.IsSimulated()},
+		Details:      map[string]interface{}{"token_id": onchainTokenID, "tx_hash": txHash, "simulated": h.blockchainClient.IsSimulated()},
 	})
 
 	// Best-effort constraint sync for smart account agents (Phase 4)
