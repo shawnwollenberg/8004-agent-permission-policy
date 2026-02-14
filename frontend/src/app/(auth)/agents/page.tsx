@@ -26,7 +26,7 @@ export default function AgentsPage() {
     name: '',
     description: '',
     agent_address: '',
-    wallet_type: 'eoa' as 'eoa' | 'smart_account',
+    wallet_type: 'smart_account' as 'eoa' | 'smart_account',
   })
 
   const { toast } = useToast()

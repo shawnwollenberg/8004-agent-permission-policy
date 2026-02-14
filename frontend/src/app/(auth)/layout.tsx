@@ -15,6 +15,8 @@ import {
   Key,
   Activity,
   Settings,
+  BookOpen,
+  ExternalLink,
 } from 'lucide-react'
 
 const navItems = [
@@ -85,6 +87,24 @@ export default function AuthLayout({
               )
             })}
           </nav>
+          <div className="border-t p-4 space-y-1">
+            <Link
+              href="/docs"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <BookOpen className="h-4 w-4" />
+              Documentation
+            </Link>
+            <a
+              href="https://eips.ethereum.org/EIPS/eip-8004"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
+              ERC-8004 Spec
+            </a>
+          </div>
         </div>
       </aside>
 
