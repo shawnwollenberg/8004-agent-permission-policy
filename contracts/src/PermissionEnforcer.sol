@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "./PolicyRegistry.sol";
 import "./interfaces/IERC8004.sol";
+import "./PriceOracle.sol";
 
 /**
  * @title PermissionEnforcer
@@ -13,6 +14,10 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
     // Reference to the policy registry
     PolicyRegistry public immutable policyRegistry;
     IERC8004IdentityRegistry public immutable identityRegistry;
+
+    // Price oracle for cross-token value normalization
+    PriceOracle public priceOracle;
+    address public owner;
 
     // Track action usage for rate limiting
     struct UsageTracker {
@@ -57,6 +62,12 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
     constructor(address _policyRegistry, address _identityRegistry) {
         policyRegistry = PolicyRegistry(_policyRegistry);
         identityRegistry = IERC8004IdentityRegistry(_identityRegistry);
+        owner = msg.sender;
+    }
+
+    function setPriceOracle(address _priceOracle) external {
+        require(msg.sender == owner, "Not owner");
+        priceOracle = PriceOracle(_priceOracle);
     }
 
     /**
@@ -237,8 +248,14 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
         if (actionData.length >= 64) {
             (uint256 value, address token) = abi.decode(actionData, (uint256, address));
 
-            // Check max value per tx
-            if (constraints.maxValuePerTx > 0 && value > constraints.maxValuePerTx) {
+            // Normalize value to ETH-equivalent via price oracle
+            uint256 ethValue = value;
+            if (address(priceOracle) != address(0) && token != address(0)) {
+                ethValue = priceOracle.getEthValue(token, value);
+            }
+
+            // Check max value per tx (using ETH-normalized value)
+            if (constraints.maxValuePerTx > 0 && ethValue > constraints.maxValuePerTx) {
                 return false;
             }
 
@@ -295,7 +312,7 @@ contract PermissionEnforcer is IERC8004ValidationRegistry {
                 currentDailyVolume = 0;
             }
 
-            if (constraints.maxDailyVolume > 0 && currentDailyVolume + value > constraints.maxDailyVolume) {
+            if (constraints.maxDailyVolume > 0 && currentDailyVolume + ethValue > constraints.maxDailyVolume) {
                 return false;
             }
 

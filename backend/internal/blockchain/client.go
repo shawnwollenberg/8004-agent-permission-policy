@@ -31,6 +31,7 @@ type Client struct {
 	identityRegistry *bindings.IdentityRegistry
 	policyRegistry   *bindings.PolicyRegistry
 	enforcer         *bindings.PermissionEnforcer
+	priceOracle      *bindings.PriceOracle
 	factory          *bindings.AgentAccountFactory
 	simulated        bool
 
@@ -114,6 +115,15 @@ func NewClient(cfg *config.Config, logger zerolog.Logger) *Client {
 			logger.Error().Err(err).Msg("blockchain client: failed to bind PermissionEnforcer")
 		} else {
 			c.enforcer = pe
+		}
+	}
+
+	if cfg.Blockchain.PriceOracleAddress != "" {
+		po, err := bindings.NewPriceOracle(common.HexToAddress(cfg.Blockchain.PriceOracleAddress), ethClient)
+		if err != nil {
+			logger.Error().Err(err).Msg("blockchain client: failed to bind PriceOracle")
+		} else {
+			c.priceOracle = po
 		}
 	}
 
@@ -411,6 +421,50 @@ func (c *Client) SetConstraints(
 	}
 
 	return receipt.TxHash.Hex(), nil
+}
+
+// SetPriceOracle calls setPriceOracle on the PermissionEnforcer.
+func (c *Client) SetPriceOracle(ctx context.Context, oracleAddress common.Address) (string, error) {
+	if c.simulated || c.enforcer == nil {
+		txHash := sha256.Sum256(append([]byte("setPriceOracle:"), oracleAddress.Bytes()...))
+		return "0x" + hex.EncodeToString(txHash[:]), nil
+	}
+
+	tx, err := c.transact(ctx, c.enforcer.BoundContract, "setPriceOracle", oracleAddress)
+	if err != nil {
+		return "", fmt.Errorf("setPriceOracle tx failed: %w", err)
+	}
+
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+
+	return receipt.TxHash.Hex(), nil
+}
+
+// GetEthValue calls getEthValue on the PriceOracle (read-only).
+func (c *Client) GetEthValue(ctx context.Context, token common.Address, amount *big.Int) (*big.Int, error) {
+	if c.simulated || c.priceOracle == nil {
+		return amount, nil
+	}
+
+	var result []interface{}
+	err := c.priceOracle.Call(&bind.CallOpts{Context: ctx}, &result, "getEthValue", token, amount)
+	if err != nil {
+		return nil, fmt.Errorf("priceOracle.getEthValue failed: %w", err)
+	}
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("priceOracle.getEthValue returned no result")
+	}
+
+	ethValue, ok := result[0].(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("priceOracle.getEthValue returned unexpected type")
+	}
+
+	return ethValue, nil
 }
 
 // WaitForTx waits for a transaction to be mined and returns the receipt.

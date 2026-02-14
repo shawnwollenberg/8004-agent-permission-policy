@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { UnitSelector } from '@/components/ui/unit-selector'
 import { formatDate } from '@/lib/utils'
+import { formatWithUnit } from '@/lib/units'
 import { CopyableAddress } from '@/components/ui/copyable-address'
 import {
   Plus,
@@ -268,45 +270,48 @@ export default function PoliciesPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label htmlFor="maxValuePerTx" className="text-xs text-muted-foreground">Max Value Per Tx</Label>
-                      <Input
+                      <UnitSelector
                         id="maxValuePerTx"
                         value={newPolicy.definition.constraints?.maxValuePerTx || ''}
-                        onChange={(e) =>
+                        onChange={(weiValue) =>
                           setNewPolicy({
                             ...newPolicy,
                             definition: {
                               ...newPolicy.definition,
                               constraints: {
                                 ...newPolicy.definition.constraints,
-                                maxValuePerTx: e.target.value,
+                                maxValuePerTx: weiValue,
                               },
                             },
                           })
                         }
-                        placeholder="5000"
+                        placeholder="1.0"
                       />
                     </div>
                     <div>
                       <Label htmlFor="maxDailyVolume" className="text-xs text-muted-foreground">Max Daily Volume</Label>
-                      <Input
+                      <UnitSelector
                         id="maxDailyVolume"
                         value={newPolicy.definition.constraints?.maxDailyVolume || ''}
-                        onChange={(e) =>
+                        onChange={(weiValue) =>
                           setNewPolicy({
                             ...newPolicy,
                             definition: {
                               ...newPolicy.definition,
                               constraints: {
                                 ...newPolicy.definition.constraints,
-                                maxDailyVolume: e.target.value,
+                                maxDailyVolume: weiValue,
                               },
                             },
                           })
                         }
-                        placeholder="50000"
+                        placeholder="10.0"
                       />
                     </div>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Values are stored in wei. Use the unit selector to enter in ETH, Gwei, or Wei.
+                  </p>
                   <div>
                     <Label htmlFor="maxTxCount" className="text-xs text-muted-foreground">Max Transactions Per Day</Label>
                     <Input
@@ -583,10 +588,10 @@ export default function PoliciesPage() {
                       </p>
                       <div className="text-sm space-y-0.5">
                         {policy.definition.constraints.maxValuePerTx && (
-                          <p>Max/tx: ${policy.definition.constraints.maxValuePerTx}</p>
+                          <p>Max/tx: {formatWithUnit(policy.definition.constraints.maxValuePerTx, 'eth')}</p>
                         )}
                         {policy.definition.constraints.maxDailyVolume && (
-                          <p>Max/day: ${policy.definition.constraints.maxDailyVolume}</p>
+                          <p>Max/day: {formatWithUnit(policy.definition.constraints.maxDailyVolume, 'eth')}</p>
                         )}
                         {policy.definition.constraints.maxTxCount && (
                           <p>Max txs/day: {policy.definition.constraints.maxTxCount}</p>

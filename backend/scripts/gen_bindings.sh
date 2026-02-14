@@ -19,6 +19,7 @@ contracts=(
   "IdentityRegistry:IdentityRegistry.sol/IdentityRegistry.json:identityregistry"
   "PolicyRegistry:PolicyRegistry.sol/PolicyRegistry.json:policyregistry"
   "PermissionEnforcer:PermissionEnforcer.sol/PermissionEnforcer.json:permissionenforcer"
+  "PriceOracle:PriceOracle.sol/PriceOracle.json:priceoracle"
   "AgentAccountFactory:AgentAccountFactory.sol/AgentAccountFactory.json:agentaccountfactory"
 )
 

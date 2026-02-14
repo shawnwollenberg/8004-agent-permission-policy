@@ -68,6 +68,7 @@ func NewPolicyRegistry(address common.Address, backend bind.ContractBackend) (*P
 
 const permissionEnforcerABI = `[
 	{"type":"function","name":"setConstraints","inputs":[{"name":"permissionId","type":"bytes32"},{"name":"maxValuePerTx","type":"uint256"},{"name":"maxDailyVolume","type":"uint256"},{"name":"maxTxCount","type":"uint256"},{"name":"allowedActions","type":"bytes32[]"},{"name":"allowedTokens","type":"address[]"},{"name":"allowedProtocols","type":"address[]"},{"name":"allowedChains","type":"uint256[]"}],"outputs":[],"stateMutability":"nonpayable"},
+	{"type":"function","name":"setPriceOracle","inputs":[{"name":"_priceOracle","type":"address"}],"outputs":[],"stateMutability":"nonpayable"},
 	{"type":"function","name":"permissionConstraints","inputs":[{"name":"","type":"bytes32"}],"outputs":[{"name":"maxValuePerTx","type":"uint256"},{"name":"maxDailyVolume","type":"uint256"},{"name":"maxTxCount","type":"uint256"}],"stateMutability":"view"},
 	{"type":"function","name":"validateAction","inputs":[{"name":"permissionId","type":"bytes32"},{"name":"agentId","type":"bytes32"},{"name":"actionType","type":"bytes32"},{"name":"actionData","type":"bytes"}],"outputs":[{"name":"allowed","type":"bool"},{"name":"reason","type":"string"}],"stateMutability":"view"}
 ]`
@@ -90,6 +91,28 @@ type ConstraintsResult struct {
 	MaxValuePerTx  *big.Int
 	MaxDailyVolume *big.Int
 	MaxTxCount     *big.Int
+}
+
+// --- PriceOracle ---
+
+const priceOracleABI = `[
+	{"type":"function","name":"getEthValue","inputs":[{"name":"token","type":"address"},{"name":"amount","type":"uint256"}],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+	{"type":"function","name":"getEthUsdPrice","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+	{"type":"function","name":"setTokenFeed","inputs":[{"name":"token","type":"address"},{"name":"feed","type":"address"}],"outputs":[],"stateMutability":"nonpayable"},
+	{"type":"function","name":"removeTokenFeed","inputs":[{"name":"token","type":"address"}],"outputs":[],"stateMutability":"nonpayable"}
+]`
+
+type PriceOracle struct {
+	*bind.BoundContract
+}
+
+func NewPriceOracle(address common.Address, backend bind.ContractBackend) (*PriceOracle, error) {
+	parsed, err := abi.JSON(strings.NewReader(priceOracleABI))
+	if err != nil {
+		return nil, err
+	}
+	contract := bind.NewBoundContract(address, parsed, backend, backend, backend)
+	return &PriceOracle{contract}, nil
 }
 
 // --- AgentAccountFactory ---
