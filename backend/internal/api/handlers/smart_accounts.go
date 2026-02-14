@@ -26,6 +26,7 @@ type SmartAccount struct {
 	DeployTxHash      *string    `json:"deploy_tx_hash,omitempty"`
 	EntrypointAddress string     `json:"entrypoint_address"`
 	ChainID           int        `json:"chain_id"`
+	SignerType        string     `json:"signer_type"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 	DeployedAt        *time.Time `json:"deployed_at,omitempty"`
@@ -33,6 +34,7 @@ type SmartAccount struct {
 
 type DeploySmartAccountRequest struct {
 	SignerAddress string `json:"signer_address"`
+	SignerType    string `json:"signer_type,omitempty"`
 }
 
 // DeploySmartAccount deploys a new ERC-4337 smart account for an agent.
@@ -60,6 +62,11 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 	if req.SignerAddress == "" {
 		respondError(w, http.StatusBadRequest, "signer_address is required")
 		return
+	}
+
+	signerType := "wallet"
+	if req.SignerType == "generated" {
+		signerType = "generated"
 	}
 
 	// Verify agent belongs to user and is active
@@ -131,11 +138,11 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 	// Insert smart account record
 	var sa SmartAccount
 	err = h.db.QueryRow(r.Context(),
-		`INSERT INTO smart_accounts (agent_id, wallet_id, account_address, factory_address, signer_address, salt, deployed, deploy_tx_hash, entrypoint_address, chain_id, deployed_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $7 THEN NOW() ELSE NULL END)
-		 RETURNING id, agent_id, wallet_id, account_address, factory_address, signer_address, salt, deployed, deploy_tx_hash, entrypoint_address, chain_id, created_at, updated_at, deployed_at`,
-		agentID, userID, predictedAddress, factoryAddress, req.SignerAddress, salt, deployed, deployTxHash, entrypointAddress, chainID,
-	).Scan(&sa.ID, &sa.AgentID, &sa.WalletID, &sa.AccountAddress, &sa.FactoryAddress, &sa.SignerAddress, &sa.Salt, &sa.Deployed, &sa.DeployTxHash, &sa.EntrypointAddress, &sa.ChainID, &sa.CreatedAt, &sa.UpdatedAt, &sa.DeployedAt)
+		`INSERT INTO smart_accounts (agent_id, wallet_id, account_address, factory_address, signer_address, salt, deployed, deploy_tx_hash, entrypoint_address, chain_id, signer_type, deployed_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CASE WHEN $7 THEN NOW() ELSE NULL END)
+		 RETURNING id, agent_id, wallet_id, account_address, factory_address, signer_address, salt, deployed, deploy_tx_hash, entrypoint_address, chain_id, signer_type, created_at, updated_at, deployed_at`,
+		agentID, userID, predictedAddress, factoryAddress, req.SignerAddress, salt, deployed, deployTxHash, entrypointAddress, chainID, signerType,
+	).Scan(&sa.ID, &sa.AgentID, &sa.WalletID, &sa.AccountAddress, &sa.FactoryAddress, &sa.SignerAddress, &sa.Salt, &sa.Deployed, &sa.DeployTxHash, &sa.EntrypointAddress, &sa.ChainID, &sa.SignerType, &sa.CreatedAt, &sa.UpdatedAt, &sa.DeployedAt)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to create smart account record")
 		respondError(w, http.StatusInternalServerError, "failed to create smart account")
@@ -159,6 +166,7 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 		Details: map[string]interface{}{
 			"account_address": predictedAddress,
 			"signer_address":  req.SignerAddress,
+			"signer_type":     signerType,
 			"factory_address": factoryAddress,
 			"chain_id":        chainID,
 			"deployed":        deployed,
@@ -188,14 +196,14 @@ func (h *Handlers) GetSmartAccount(w http.ResponseWriter, r *http.Request) {
 	var sa SmartAccount
 	err = h.db.QueryRow(r.Context(),
 		`SELECT sa.id, sa.agent_id, sa.wallet_id, sa.account_address, sa.factory_address, sa.signer_address,
-		        sa.salt, sa.deployed, sa.deploy_tx_hash, sa.entrypoint_address, sa.chain_id,
+		        sa.salt, sa.deployed, sa.deploy_tx_hash, sa.entrypoint_address, sa.chain_id, sa.signer_type,
 		        sa.created_at, sa.updated_at, sa.deployed_at
 		 FROM smart_accounts sa
 		 JOIN agents a ON a.id = sa.agent_id
 		 WHERE sa.agent_id = $1 AND a.wallet_id = $2`,
 		agentID, userID,
 	).Scan(&sa.ID, &sa.AgentID, &sa.WalletID, &sa.AccountAddress, &sa.FactoryAddress, &sa.SignerAddress,
-		&sa.Salt, &sa.Deployed, &sa.DeployTxHash, &sa.EntrypointAddress, &sa.ChainID,
+		&sa.Salt, &sa.Deployed, &sa.DeployTxHash, &sa.EntrypointAddress, &sa.ChainID, &sa.SignerType,
 		&sa.CreatedAt, &sa.UpdatedAt, &sa.DeployedAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "smart account not found")
@@ -296,11 +304,11 @@ func (h *Handlers) UpgradeToSmartAccount(w http.ResponseWriter, r *http.Request)
 	// Insert smart account
 	var sa SmartAccount
 	err = h.db.QueryRow(r.Context(),
-		`INSERT INTO smart_accounts (agent_id, wallet_id, account_address, factory_address, signer_address, salt, deployed, deploy_tx_hash, entrypoint_address, chain_id, deployed_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $7 THEN NOW() ELSE NULL END)
-		 RETURNING id, agent_id, wallet_id, account_address, factory_address, signer_address, salt, deployed, deploy_tx_hash, entrypoint_address, chain_id, created_at, updated_at, deployed_at`,
+		`INSERT INTO smart_accounts (agent_id, wallet_id, account_address, factory_address, signer_address, salt, deployed, deploy_tx_hash, entrypoint_address, chain_id, signer_type, deployed_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'wallet', CASE WHEN $7 THEN NOW() ELSE NULL END)
+		 RETURNING id, agent_id, wallet_id, account_address, factory_address, signer_address, salt, deployed, deploy_tx_hash, entrypoint_address, chain_id, signer_type, created_at, updated_at, deployed_at`,
 		agentID, userID, predictedAddress, factoryAddress, signerAddress, salt, deployed, deployTxHash, entrypointAddress, chainID,
-	).Scan(&sa.ID, &sa.AgentID, &sa.WalletID, &sa.AccountAddress, &sa.FactoryAddress, &sa.SignerAddress, &sa.Salt, &sa.Deployed, &sa.DeployTxHash, &sa.EntrypointAddress, &sa.ChainID, &sa.CreatedAt, &sa.UpdatedAt, &sa.DeployedAt)
+	).Scan(&sa.ID, &sa.AgentID, &sa.WalletID, &sa.AccountAddress, &sa.FactoryAddress, &sa.SignerAddress, &sa.Salt, &sa.Deployed, &sa.DeployTxHash, &sa.EntrypointAddress, &sa.ChainID, &sa.SignerType, &sa.CreatedAt, &sa.UpdatedAt, &sa.DeployedAt)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to create smart account for upgrade")
 		respondError(w, http.StatusInternalServerError, "failed to upgrade to smart account")

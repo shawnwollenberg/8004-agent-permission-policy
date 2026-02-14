@@ -24,6 +24,7 @@ type Agent struct {
 	EnforcementLevel     string     `json:"enforcement_level"`
 	SmartAccountAddress  *string    `json:"smart_account_address,omitempty"`
 	SignerAddress        *string    `json:"signer_address,omitempty"`
+	SignerType           *string    `json:"signer_type,omitempty"`
 	CreatedAt            time.Time  `json:"created_at"`
 	UpdatedAt            time.Time  `json:"updated_at"`
 	OnchainRegisteredAt  *time.Time `json:"onchain_registered_at,omitempty"`
@@ -94,7 +95,7 @@ func (h *Handlers) ListAgents(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(r.Context(),
 		`SELECT a.id, a.wallet_id, a.name, a.description, a.agent_address, a.onchain_registry_id,
 		        a.status, a.wallet_type, a.enforcement_level, a.created_at, a.updated_at,
-		        a.onchain_registered_at, sa.account_address, sa.signer_address
+		        a.onchain_registered_at, sa.account_address, sa.signer_address, sa.signer_type
 		 FROM agents a
 		 LEFT JOIN smart_accounts sa ON sa.agent_id = a.id
 		 WHERE a.wallet_id = $1 AND a.status != 'deleted'
@@ -112,7 +113,7 @@ func (h *Handlers) ListAgents(w http.ResponseWriter, r *http.Request) {
 		var a Agent
 		if err := rows.Scan(&a.ID, &a.WalletID, &a.Name, &a.Description, &a.AgentAddress, &a.OnchainRegistryID,
 			&a.Status, &a.WalletType, &a.EnforcementLevel, &a.CreatedAt, &a.UpdatedAt,
-			&a.OnchainRegisteredAt, &a.SmartAccountAddress, &a.SignerAddress); err != nil {
+			&a.OnchainRegisteredAt, &a.SmartAccountAddress, &a.SignerAddress, &a.SignerType); err != nil {
 			continue
 		}
 		agents = append(agents, a)
@@ -139,14 +140,14 @@ func (h *Handlers) GetAgent(w http.ResponseWriter, r *http.Request) {
 	err = h.db.QueryRow(r.Context(),
 		`SELECT a.id, a.wallet_id, a.name, a.description, a.agent_address, a.onchain_registry_id,
 		        a.status, a.wallet_type, a.enforcement_level, a.created_at, a.updated_at,
-		        a.onchain_registered_at, sa.account_address, sa.signer_address
+		        a.onchain_registered_at, sa.account_address, sa.signer_address, sa.signer_type
 		 FROM agents a
 		 LEFT JOIN smart_accounts sa ON sa.agent_id = a.id
 		 WHERE a.id = $1 AND a.wallet_id = $2 AND a.status != 'deleted'`,
 		agentID, userID,
 	).Scan(&agent.ID, &agent.WalletID, &agent.Name, &agent.Description, &agent.AgentAddress, &agent.OnchainRegistryID,
 		&agent.Status, &agent.WalletType, &agent.EnforcementLevel, &agent.CreatedAt, &agent.UpdatedAt,
-		&agent.OnchainRegisteredAt, &agent.SmartAccountAddress, &agent.SignerAddress)
+		&agent.OnchainRegisteredAt, &agent.SmartAccountAddress, &agent.SignerAddress, &agent.SignerType)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "agent not found")
 		return

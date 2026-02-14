@@ -10,11 +10,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatDate } from '@/lib/utils'
 import { CopyableAddress } from '@/components/ui/copyable-address'
-import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle, Rocket } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useAccount } from 'wagmi'
 import { useToast } from '@/hooks/useToast'
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 
 export default function AgentsPage() {
   const queryClient = useQueryClient()
@@ -29,6 +30,14 @@ export default function AgentsPage() {
     wallet_type: 'smart_account' as 'eoa' | 'smart_account',
   })
 
+  // Bot signer state
+  const [signerSource, setSignerSource] = useState<'wallet' | 'generated'>('wallet')
+  const [generatedKey, setGeneratedKey] = useState<{ privateKey: string; address: string } | null>(null)
+  const [showRevealDialog, setShowRevealDialog] = useState(false)
+  const [showPrivateKey, setShowPrivateKey] = useState(false)
+  const [revealSmartAccountAddress, setRevealSmartAccountAddress] = useState<string | null>(null)
+  const [expandedBotDetails, setExpandedBotDetails] = useState<Set<string>>(new Set())
+
   const { toast } = useToast()
 
   const { data: agentsList, isLoading } = useQuery({
@@ -37,10 +46,14 @@ export default function AgentsPage() {
   })
 
   const deployMutation = useMutation({
-    mutationFn: ({ agentId, signerAddress }: { agentId: string; signerAddress: string }) =>
-      agents.deploySmartAccount(agentId, { signer_address: signerAddress }),
+    mutationFn: ({ agentId, signerAddress, signerType }: { agentId: string; signerAddress: string; signerType?: string }) =>
+      agents.deploySmartAccount(agentId, { signer_address: signerAddress, signer_type: signerType }),
     onSuccess: (sa) => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
+      if (sa.signer_type === 'generated' && generatedKey) {
+        setRevealSmartAccountAddress(sa.account_address)
+        setShowRevealDialog(true)
+      }
       toast({
         title: 'Secure Account deployed',
         description: `Address: ${sa.account_address.slice(0, 10)}...`,
@@ -62,11 +75,22 @@ export default function AgentsPage() {
     onSuccess: (agent) => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       setIsCreateOpen(false)
-      const signerAddr = agent.wallet_type === 'smart_account' ? (address || '') : (newAgent.agent_address || address || '')
+
+      let signerAddr: string
+      let signerType: string | undefined
+      if (agent.wallet_type === 'smart_account' && signerSource === 'generated' && generatedKey) {
+        signerAddr = generatedKey.address
+        signerType = 'generated'
+      } else {
+        signerAddr = agent.wallet_type === 'smart_account' ? (address || '') : (newAgent.agent_address || address || '')
+        signerType = 'wallet'
+      }
+
       setNewAgent({ name: '', description: '', agent_address: '', wallet_type: 'smart_account' })
       toast({ title: 'Agent registered', variant: 'success' })
+
       if (agent.wallet_type === 'smart_account' && signerAddr) {
-        deployMutation.mutate({ agentId: agent.id, signerAddress: signerAddr })
+        deployMutation.mutate({ agentId: agent.id, signerAddress: signerAddr, signerType })
       }
     },
     onError: (e: Error) => toast({ title: 'Failed to register agent', description: e.message, variant: 'destructive' }),
@@ -131,6 +155,12 @@ export default function AgentsPage() {
     )
   }
 
+  const handleGenerateKey = () => {
+    const privateKey = generatePrivateKey()
+    const account = privateKeyToAccount(privateKey)
+    setGeneratedKey({ privateKey, address: account.address })
+  }
+
   const handleCreate = () => {
     const data: { name: string; description?: string; agent_address?: string; wallet_type?: string } = {
       name: newAgent.name,
@@ -138,11 +168,66 @@ export default function AgentsPage() {
     }
     if (newAgent.description) data.description = newAgent.description
     if (newAgent.wallet_type === 'smart_account') {
-      if (address) data.agent_address = address
+      if (signerSource === 'generated' && generatedKey) {
+        data.agent_address = generatedKey.address
+      } else if (address) {
+        data.agent_address = address
+      }
     } else {
       if (newAgent.agent_address) data.agent_address = newAgent.agent_address
     }
     createMutation.mutate(data)
+  }
+
+  const handleCloseCreateDialog = (open: boolean) => {
+    setIsCreateOpen(open)
+    if (!open) {
+      setSignerSource('wallet')
+      setGeneratedKey(null)
+    }
+  }
+
+  const handleDownloadEnv = () => {
+    if (!generatedKey || !revealSmartAccountAddress) return
+    const content = [
+      `BOT_PRIVATE_KEY=${generatedKey.privateKey}`,
+      `BOT_ADDRESS=${generatedKey.address}`,
+      `SMART_ACCOUNT_ADDRESS=${revealSmartAccountAddress}`,
+      `ENTRYPOINT_ADDRESS=0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`,
+      `CHAIN_ID=11155111`,
+    ].join('\n')
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'bot-signer.env'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleCloseRevealDialog = () => {
+    setShowRevealDialog(false)
+    setShowPrivateKey(false)
+    setGeneratedKey(null)
+    setRevealSmartAccountAddress(null)
+    setSignerSource('wallet')
+  }
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text)
+    toast({ title: `${label} copied`, variant: 'success' })
+  }
+
+  const toggleBotDetails = (agentId: string) => {
+    setExpandedBotDetails(prev => {
+      const next = new Set(prev)
+      if (next.has(agentId)) {
+        next.delete(agentId)
+      } else {
+        next.add(agentId)
+      }
+      return next
+    })
   }
 
   return (
@@ -154,7 +239,7 @@ export default function AgentsPage() {
             Manage your AI agents and their identities
           </p>
         </div>
-        <Dialog.Root open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog.Root open={isCreateOpen} onOpenChange={handleCloseCreateDialog}>
           <Dialog.Trigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -163,7 +248,7 @@ export default function AgentsPage() {
           </Dialog.Trigger>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-            <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg">
+            <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg max-h-[90vh] overflow-y-auto">
               <Dialog.Title className="text-lg font-semibold">
                 Register New Agent
               </Dialog.Title>
@@ -178,7 +263,11 @@ export default function AgentsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => setNewAgent({ ...newAgent, wallet_type: 'eoa', agent_address: '' })}
+                      onClick={() => {
+                        setNewAgent({ ...newAgent, wallet_type: 'eoa', agent_address: '' })
+                        setSignerSource('wallet')
+                        setGeneratedKey(null)
+                      }}
                       className={`rounded-lg border-2 p-3 text-left transition-colors ${
                         newAgent.wallet_type === 'eoa'
                           ? 'border-primary bg-primary/5'
@@ -238,14 +327,77 @@ export default function AgentsPage() {
                 </div>
 
                 {newAgent.wallet_type === 'smart_account' ? (
-                  <div>
-                    <Label>Signer Address</Label>
-                    <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
-                      {address || 'Connect wallet to continue'}
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="mb-2 block">Signer Source</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSignerSource('wallet')
+                            setGeneratedKey(null)
+                          }}
+                          className={`rounded-md border px-3 py-2 text-sm transition-colors ${
+                            signerSource === 'wallet'
+                              ? 'border-primary bg-primary/5 font-medium'
+                              : 'border-muted hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          Connected Wallet
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSignerSource('generated')}
+                          className={`rounded-md border px-3 py-2 text-sm transition-colors flex items-center justify-center gap-1.5 ${
+                            signerSource === 'generated'
+                              ? 'border-primary bg-primary/5 font-medium'
+                              : 'border-muted hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          <Key className="h-3.5 w-3.5" />
+                          Generate Bot Signer
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Your connected wallet will sign transactions for the Secure Account.
-                    </p>
+
+                    {signerSource === 'wallet' ? (
+                      <div>
+                        <Label>Signer Address</Label>
+                        <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                          {address || 'Connect wallet to continue'}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Your connected wallet will sign transactions for the Secure Account.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {!generatedKey ? (
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              A new keypair will be generated for your bot. The private key will be shown once after account creation.
+                            </p>
+                            <Button type="button" variant="outline" size="sm" onClick={handleGenerateKey}>
+                              <Key className="mr-2 h-3.5 w-3.5" />
+                              Generate Key
+                            </Button>
+                          </div>
+                        ) : (
+                          <div>
+                            <Label>Bot Signer Address</Label>
+                            <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm font-mono">
+                              {generatedKey.address}
+                            </div>
+                            <div className="flex items-start gap-2 mt-2 rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-2">
+                              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                              <p className="text-xs text-amber-700 dark:text-amber-400">
+                                You must save the private key after creation — it cannot be recovered.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div>
@@ -280,7 +432,7 @@ export default function AgentsPage() {
                 </Dialog.Close>
                 <Button
                   onClick={handleCreate}
-                  disabled={!newAgent.name || createMutation.isPending}
+                  disabled={!newAgent.name || createMutation.isPending || (newAgent.wallet_type === 'smart_account' && signerSource === 'generated' && !generatedKey)}
                 >
                   {createMutation.isPending ? 'Registering...' : 'Register Agent'}
                 </Button>
@@ -289,6 +441,102 @@ export default function AgentsPage() {
           </Dialog.Portal>
         </Dialog.Root>
       </div>
+
+      {/* Private Key Reveal Dialog */}
+      <Dialog.Root open={showRevealDialog} onOpenChange={() => {}}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+          <Dialog.Content
+            className="fixed left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg"
+            onEscapeKeyDown={(e) => e.preventDefault()}
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+          >
+            <Dialog.Title className="text-lg font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Save Your Bot&apos;s Private Key
+            </Dialog.Title>
+            <Dialog.Description className="text-sm text-muted-foreground mt-1 mb-4">
+              This is the ONLY time this key will be shown. It is not stored anywhere — if you close this dialog without saving, the key is lost forever.
+            </Dialog.Description>
+
+            {generatedKey && (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Private Key</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-sm break-all">
+                      {showPrivateKey ? generatedKey.privateKey : `${generatedKey.privateKey.slice(0, 10)}${'*'.repeat(54)}`}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowPrivateKey(!showPrivateKey)}
+                      title={showPrivateKey ? 'Hide' : 'Show'}
+                    >
+                      {showPrivateKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(generatedKey.privateKey, 'Private key')}
+                      title="Copy"
+                    >
+                      <Key className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">Bot Signer Address</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+                      {generatedKey.address}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(generatedKey.address, 'Bot address')}
+                      title="Copy"
+                    >
+                      <Key className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {revealSmartAccountAddress && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Smart Account Address</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+                        {revealSmartAccountAddress}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => copyToClipboard(revealSmartAccountAddress, 'Smart account address')}
+                        title="Copy"
+                      >
+                        <Key className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={handleDownloadEnv}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download .env file
+                  </Button>
+                  <Button className="flex-1" onClick={handleCloseRevealDialog}>
+                    I&apos;ve Saved the Key
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       {/* Upgrade Confirmation Dialog */}
       <Dialog.Root open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen}>
@@ -443,10 +691,59 @@ export default function AgentsPage() {
                   </div>
                   {agent.wallet_type === 'smart_account' && agent.signer_address && (
                     <div>
-                      <p className="text-xs text-muted-foreground">Signer</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        Signer
+                        {agent.signer_type === 'generated' && (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                            <Key className="mr-0.5 h-2.5 w-2.5" />
+                            Generated
+                          </Badge>
+                        )}
+                      </p>
                       <CopyableAddress address={agent.signer_address} />
                     </div>
                   )}
+
+                  {/* Bot Connection Details for generated signers */}
+                  {agent.signer_type === 'generated' && agent.smart_account_address && agent.signer_address && (
+                    <div>
+                      <button
+                        onClick={() => toggleBotDetails(agent.id)}
+                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        {expandedBotDetails.has(agent.id) ? (
+                          <ChevronUp className="h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3" />
+                        )}
+                        Bot Connection Details
+                      </button>
+                      {expandedBotDetails.has(agent.id) && (
+                        <div className="mt-2 rounded-md border bg-muted/50 p-3 space-y-2 text-xs">
+                          <div>
+                            <span className="text-muted-foreground">Smart Account:</span>
+                            <CopyableAddress address={agent.smart_account_address} />
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Bot Signer:</span>
+                            <CopyableAddress address={agent.signer_address} />
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">EntryPoint:</span>
+                            <CopyableAddress address="0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789" />
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Chain ID: </span>
+                            <span className="font-mono">11155111 (Sepolia)</span>
+                          </div>
+                          <p className="text-muted-foreground italic">
+                            Give these details to your bot along with the private key.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {agent.onchain_registry_id && (
                     <div>
                       <p className="text-xs text-muted-foreground">

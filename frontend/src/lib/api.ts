@@ -61,6 +61,7 @@ export interface Agent {
   enforcement_level: 'advisory' | 'enforced'
   smart_account_address?: string
   signer_address?: string
+  signer_type?: 'wallet' | 'generated'
   created_at: string
   updated_at: string
   onchain_registered_at?: string
@@ -78,6 +79,7 @@ export interface SmartAccount {
   deploy_tx_hash?: string
   entrypoint_address: string
   chain_id: number
+  signer_type: string
   created_at: string
   updated_at: string
   deployed_at?: string
@@ -93,7 +95,7 @@ export const agents = {
   delete: (id: string) => fetchApi<void>(`/api/v1/agents/${id}`, { method: 'DELETE' }),
   registerOnchain: (id: string) =>
     fetchApi<Agent>(`/api/v1/agents/${id}/register-onchain`, { method: 'POST' }),
-  deploySmartAccount: (id: string, data: { signer_address: string }) =>
+  deploySmartAccount: (id: string, data: { signer_address: string; signer_type?: string }) =>
     fetchApi<SmartAccount>(`/api/v1/agents/${id}/deploy-smart-account`, { method: 'POST', body: JSON.stringify(data) }),
   getSmartAccount: (id: string) =>
     fetchApi<SmartAccount>(`/api/v1/agents/${id}/smart-account`),
