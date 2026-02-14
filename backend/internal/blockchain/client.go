@@ -356,6 +356,27 @@ func (c *Client) GrantPermission(ctx context.Context, policyHash [32]byte, agent
 	return "0x" + hex.EncodeToString(permID), receipt.TxHash.Hex(), nil
 }
 
+// RevokePermission revokes a permission on-chain in the PolicyRegistry.
+// Returns the tx hash.
+func (c *Client) RevokePermission(ctx context.Context, permissionID [32]byte) (string, error) {
+	if c.simulated || c.policyRegistry == nil {
+		txHash := sha256.Sum256(append([]byte("revokePermission:"), permissionID[:]...))
+		return "0x" + hex.EncodeToString(txHash[:]), nil
+	}
+
+	tx, err := c.transact(ctx, c.policyRegistry.BoundContract, "revokePermission", permissionID)
+	if err != nil {
+		return "", fmt.Errorf("revokePermission tx failed: %w", err)
+	}
+
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+
+	return receipt.TxHash.Hex(), nil
+}
+
 // SetConstraints pushes policy constraints to the PermissionEnforcer contract.
 func (c *Client) SetConstraints(
 	ctx context.Context,

@@ -120,9 +120,9 @@ export default function AuditPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <div>
               <Select.Root
-                value={filters.event_type}
+                value={filters.event_type || '__all__'}
                 onValueChange={(value) =>
-                  setFilters({ ...filters, event_type: value, offset: 0 })
+                  setFilters({ ...filters, event_type: value === '__all__' ? '' : value, offset: 0 })
                 }
               >
                 <Select.Trigger className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm">
@@ -132,7 +132,7 @@ export default function AuditPage() {
                   <Select.Content className="overflow-hidden rounded-md border bg-popover shadow-md max-h-60">
                     <Select.Viewport className="p-1">
                       <Select.Item
-                        value=""
+                        value="__all__"
                         className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
                       >
                         <Select.ItemText>All event types</Select.ItemText>
@@ -153,9 +153,9 @@ export default function AuditPage() {
             </div>
             <div>
               <Select.Root
-                value={filters.agent_id}
+                value={filters.agent_id || '__all__'}
                 onValueChange={(value) =>
-                  setFilters({ ...filters, agent_id: value, offset: 0 })
+                  setFilters({ ...filters, agent_id: value === '__all__' ? '' : value, offset: 0 })
                 }
               >
                 <Select.Trigger className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm">
@@ -165,7 +165,7 @@ export default function AuditPage() {
                   <Select.Content className="overflow-hidden rounded-md border bg-popover shadow-md">
                     <Select.Viewport className="p-1">
                       <Select.Item
-                        value=""
+                        value="__all__"
                         className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
                       >
                         <Select.ItemText>All agents</Select.ItemText>
@@ -186,9 +186,9 @@ export default function AuditPage() {
             </div>
             <div>
               <Select.Root
-                value={filters.policy_id}
+                value={filters.policy_id || '__all__'}
                 onValueChange={(value) =>
-                  setFilters({ ...filters, policy_id: value, offset: 0 })
+                  setFilters({ ...filters, policy_id: value === '__all__' ? '' : value, offset: 0 })
                 }
               >
                 <Select.Trigger className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm">
@@ -198,7 +198,7 @@ export default function AuditPage() {
                   <Select.Content className="overflow-hidden rounded-md border bg-popover shadow-md">
                     <Select.Viewport className="p-1">
                       <Select.Item
-                        value=""
+                        value="__all__"
                         className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
                       >
                         <Select.ItemText>All policies</Select.ItemText>

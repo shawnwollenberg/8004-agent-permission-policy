@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"math/big"
 	"net/http"
@@ -184,6 +183,26 @@ func (h *Handlers) DeletePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if the permission was minted on-chain (need to revoke there too)
+	var onchainTokenID *string
+	h.db.QueryRow(r.Context(),
+		`SELECT onchain_token_id FROM permissions WHERE id = $1 AND wallet_id = $2 AND status = 'active'`,
+		permID, userID,
+	).Scan(&onchainTokenID)
+
+	// Revoke on-chain if permission was minted
+	if onchainTokenID != nil && *onchainTokenID != "" {
+		permIDBytes, decErr := blockchain.HexToBytes32(*onchainTokenID)
+		if decErr == nil {
+			txHash, bcErr := h.blockchainClient.RevokePermission(r.Context(), permIDBytes)
+			if bcErr != nil {
+				h.logger.Error().Err(bcErr).Str("permission_id", permID.String()).Msg("on-chain permission revocation failed (continuing with DB revoke)")
+			} else {
+				h.logger.Info().Str("permission_id", permID.String()).Str("tx_hash", txHash).Msg("permission revoked on-chain")
+			}
+		}
+	}
+
 	var agentID, policyID uuid.UUID
 	err = h.db.QueryRow(r.Context(),
 		`UPDATE permissions SET status = 'revoked', revoked_at = NOW()
@@ -217,39 +236,42 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Query permission details for on-chain minting
+	// Query permission details for on-chain minting, including agent's on-chain registration status
 	var agentID, policyID uuid.UUID
 	var validFrom time.Time
 	var validUntil *time.Time
 	var defJSON []byte
 	var onchainHash *string
+	var agentOnchainRegistryID *string
 	err = h.db.QueryRow(r.Context(),
-		`SELECT p.agent_id, p.policy_id, p.valid_from, p.valid_until, pol.definition, pol.onchain_hash
+		`SELECT p.agent_id, p.policy_id, p.valid_from, p.valid_until, pol.definition, pol.onchain_hash, a.onchain_registry_id
 		 FROM permissions p
 		 JOIN policies pol ON pol.id = p.policy_id
+		 JOIN agents a ON a.id = p.agent_id
 		 WHERE p.id = $1 AND p.wallet_id = $2 AND p.status = 'active' AND p.minted_at IS NULL`,
 		permID, userID,
-	).Scan(&agentID, &policyID, &validFrom, &validUntil, &defJSON, &onchainHash)
+	).Scan(&agentID, &policyID, &validFrom, &validUntil, &defJSON, &onchainHash, &agentOnchainRegistryID)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "permission not found or already minted")
 		return
 	}
 
-	// Use the on-chain policy ID if available, otherwise fall back to content hash
-	var policyHashBytes [32]byte
-	if onchainHash != nil && *onchainHash != "" {
-		// Decode the hex on-chain policy ID into [32]byte
-		hashStr := *onchainHash
-		if len(hashStr) > 2 && hashStr[:2] == "0x" {
-			hashStr = hashStr[2:]
-		}
-		decoded, decErr := hex.DecodeString(hashStr)
-		if decErr == nil && len(decoded) == 32 {
-			copy(policyHashBytes[:], decoded)
-		} else {
-			policyHashBytes = blockchain.PolicyContentHash(defJSON)
-		}
-	} else {
+	// Pre-check: agent must be registered on-chain before minting
+	if agentOnchainRegistryID == nil || *agentOnchainRegistryID == "" {
+		respondError(w, http.StatusBadRequest, "agent must be registered on-chain before minting a permission (use Register On-chain first)")
+		return
+	}
+
+	// Pre-check: policy must be activated on-chain before minting
+	if onchainHash == nil || *onchainHash == "" {
+		respondError(w, http.StatusBadRequest, "policy must be activated on-chain before minting a permission (use Activate first)")
+		return
+	}
+
+	// Decode the on-chain policy ID into [32]byte
+	policyHashBytes, decErr := blockchain.HexToBytes32(*onchainHash)
+	if decErr != nil {
+		h.logger.Error().Err(decErr).Str("onchain_hash", *onchainHash).Msg("failed to decode on-chain policy hash")
 		policyHashBytes = blockchain.PolicyContentHash(defJSON)
 	}
 
