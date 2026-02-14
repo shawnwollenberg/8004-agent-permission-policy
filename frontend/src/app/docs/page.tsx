@@ -90,10 +90,11 @@ export default function DocsPage() {
                       <div>
                         <h3 className="font-semibold mb-1">Register an Agent</h3>
                         <p className="text-muted-foreground text-sm">
-                          Go to the Agents page and click "Register Agent". Choose a wallet type:
-                          <strong> External Wallet</strong> for advisory monitoring, or <strong>Guardrail Secure Account</strong> (recommended)
-                          for guaranteed on-chain enforcement. Give your agent a name and description.
-                          Secure Account agents get a deployed account where unauthorized transactions cannot execute.
+                          Go to the Agents page and click &ldquo;Register Agent&rdquo;. Choose <strong>Guardrail Secure Account</strong> (recommended)
+                          for guaranteed on-chain enforcement. Then choose a signer source:
+                          <strong> Connected Wallet</strong> to use your MetaMask wallet, or <strong>Generate Bot Signer</strong> to
+                          create a dedicated keypair for your bot. The generated key is shown once after deployment — download the .env file
+                          and give it to your bot. Your personal wallet stays completely separate.
                         </p>
                       </div>
                     </div>
@@ -153,14 +154,14 @@ export default function DocsPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground text-sm mb-4">
-                      Agents represent your AI systems that need to perform on-chain actions.
-                      Each agent operates in one of two enforcement tiers: Advisory (external wallet with off-chain monitoring)
-                      or Enforced (Guardrail Secure Account with on-chain policy gating).
+                      Agents represent your AI bots that need to perform on-chain actions.
+                      Each agent gets its own smart account with spending guardrails.
+                      Generate a dedicated keypair so your bot has its own wallet, completely separate from yours.
                     </p>
                     <ul className="space-y-2 text-sm">
                       <li className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
-                        Advisory mode: monitoring + alerts via API
+                        Generate bot keypair — never share your personal keys
                       </li>
                       <li className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
@@ -168,7 +169,7 @@ export default function DocsPage() {
                       </li>
                       <li className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
-                        One-way upgrade from advisory to enforced
+                        Advisory mode: monitoring + alerts for external wallets
                       </li>
                     </ul>
                   </CardContent>
@@ -374,7 +375,7 @@ export default function DocsPage() {
                     </div>
                     <div className="flex justify-between py-2 border-b">
                       <code>POST /api/v1/agents/:id/deploy-smart-account</code>
-                      <span className="text-muted-foreground">Deploy Guardrail Secure Account</span>
+                      <span className="text-muted-foreground">Deploy Secure Account (accepts signer_type: wallet | generated)</span>
                     </div>
                     <div className="flex justify-between py-2 border-b">
                       <code>POST /api/v1/agents/:id/upgrade-to-smart-account</code>
@@ -502,6 +503,17 @@ if (allowed) {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-3">
+                    <li className="flex gap-3">
+                      <ArrowRight className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium">Generate a dedicated bot signer</p>
+                        <p className="text-sm text-muted-foreground">
+                          Never give your personal wallet key to a bot. Use &ldquo;Generate Bot Signer&rdquo; during agent creation
+                          to create a fresh keypair. The bot gets its own smart account with its own funds, completely
+                          isolated from your personal wallet.
+                        </p>
+                      </div>
+                    </li>
                     <li className="flex gap-3">
                       <ArrowRight className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                       <div>

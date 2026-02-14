@@ -50,12 +50,13 @@ export default function AboutPage() {
               <span className="text-sm font-medium">Built on ERC-8004 Standard</span>
             </div>
             <h1 className="text-5xl md:text-6xl font-bold mb-6">
-              The Permission Layer for AI Agents
+              Smart Accounts with Spending Guardrails for AI Agents
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Guardrail is the authorization infrastructure for autonomous AI agents.
-              Define what your agents can do, enforce limits on-chain, and maintain
-              complete audit trails. Think AWS IAM + CloudTrail for crypto agents.
+              Give your bots their own wallets — completely separated from yours — with
+              built-in spending limits enforced on-chain. Generate a dedicated keypair,
+              deploy a smart account, and define exactly what your agent can do.
+              Think AWS IAM + CloudTrail for autonomous crypto agents.
             </p>
             <div className="flex gap-4 justify-center">
               <Link href="/">
@@ -79,31 +80,32 @@ export default function AboutPage() {
             <div className="max-w-3xl mx-auto text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">The Problem</h2>
               <p className="text-lg text-muted-foreground">
-                AI agents are becoming autonomous actors in DeFi, managing portfolios,
-                executing trades, and interacting with protocols. But how do you trust
-                an AI with your assets?
+                AI agents need private keys to sign transactions autonomously. But sharing your
+                personal wallet's private key with a bot means the bot has unlimited access to
+                all your assets. There's no separation, no limits, and no kill switch.
               </p>
             </div>
             <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
               <Card className="bg-background">
                 <CardContent className="pt-6">
                   <div className="text-red-500 mb-4">
-                    <Lock className="h-8 w-8" />
+                    <Key className="h-8 w-8" />
                   </div>
-                  <h3 className="font-semibold mb-2">Unlimited Access</h3>
+                  <h3 className="font-semibold mb-2">Shared Private Keys</h3>
                   <p className="text-sm text-muted-foreground">
-                    Most agents have full access to connected wallets with no spending limits or action restrictions.
+                    Bots need raw private keys to sign transactions, but using your personal wallet
+                    key gives them access to everything you own.
                   </p>
                 </CardContent>
               </Card>
               <Card className="bg-background">
                 <CardContent className="pt-6">
                   <div className="text-red-500 mb-4">
-                    <Eye className="h-8 w-8" />
+                    <Lock className="h-8 w-8" />
                   </div>
-                  <h3 className="font-semibold mb-2">No Visibility</h3>
+                  <h3 className="font-semibold mb-2">No Spending Limits</h3>
                   <p className="text-sm text-muted-foreground">
-                    What did your agent do? When? Why? Without audit trails, you're flying blind.
+                    Most agents have full access with no per-transaction caps, daily volume limits, or action restrictions.
                   </p>
                 </CardContent>
               </Card>
@@ -128,20 +130,34 @@ export default function AboutPage() {
             <div className="max-w-3xl mx-auto text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">The Solution</h2>
               <p className="text-lg text-muted-foreground">
-                Guardrail provides a complete permission management system for AI agents,
-                built on the ERC-8004 standard for on-chain agent authorization.
+                Guardrail gives each bot its own wallet with built-in spending guardrails.
+                Generate a dedicated keypair, deploy a smart account, and set policies that
+                are enforced on-chain. Your personal wallet never touches the bot.
               </p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
                 <CardHeader>
-                  <Bot className="h-10 w-10 text-primary mb-2" />
-                  <CardTitle>Agent Identity</CardTitle>
+                  <Key className="h-10 w-10 text-primary mb-2" />
+                  <CardTitle>Dedicated Bot Keys</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Register your AI agents with unique identities. Track which agent
-                    did what, and manage multiple agents from a single dashboard.
+                    Generate a fresh keypair for each bot. The private key is shown once
+                    and never stored. Your personal wallet stays completely separate.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <Shield className="h-10 w-10 text-primary mb-2" />
+                  <CardTitle>Smart Account Deployment</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Each bot gets an ERC-4337 smart account. Fund it with only what the bot
+                    needs. Unauthorized transactions are blocked before execution.
                   </p>
                 </CardContent>
               </Card>
@@ -149,25 +165,12 @@ export default function AboutPage() {
               <Card>
                 <CardHeader>
                   <FileCheck className="h-10 w-10 text-primary mb-2" />
-                  <CardTitle>Granular Policies</CardTitle>
+                  <CardTitle>Spending Guardrails</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Define exactly what actions are allowed: swap, transfer, stake.
-                    Set limits on value per transaction, daily volume, and more.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <Key className="h-10 w-10 text-primary mb-2" />
-                  <CardTitle>Permission Control</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Grant, revoke, and manage permissions in real-time. Set expiration
-                    dates and mint permissions on-chain for cryptographic enforcement.
+                    Set per-transaction limits, daily volume caps, and action allowlists.
+                    Policies are enforced on-chain — bots physically cannot exceed limits.
                   </p>
                 </CardContent>
               </Card>
@@ -243,6 +246,91 @@ if guardrail.validate(agent_id, action={
 else:
     # Action denied - handle gracefully
     log_denied_action(...)`}</pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Bot Wallet Separation */}
+        <section className="py-20">
+          <div className="container mx-auto px-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="grid md:grid-cols-2 gap-12 items-center">
+                <div>
+                  <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-2 mb-4">
+                    <Key className="h-4 w-4" />
+                    <span className="text-sm font-medium">Wallet Separation</span>
+                  </div>
+                  <h2 className="text-3xl font-bold mb-4">Never Share Your Private Key with a Bot</h2>
+                  <p className="text-muted-foreground mb-6">
+                    Guardrail generates a fresh keypair for each bot during agent creation.
+                    The bot gets its own private key and its own smart account — completely
+                    isolated from your personal wallet. You control the guardrails, the bot
+                    operates within them.
+                  </p>
+                  <ul className="space-y-3">
+                    <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span>One-click keypair generation in the browser</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span>Private key shown once, never stored on any server</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span>Download .env file with all bot connection details</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span>Smart account enforces spending limits even if bot is compromised</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span>Fund only what the bot needs — your main wallet stays safe</span>
+                    </li>
+                  </ul>
+                </div>
+                <div className="bg-muted rounded-lg p-6">
+                  <h3 className="font-semibold mb-4">How Bot Signer Generation Works</h3>
+                  <div className="space-y-4 text-sm">
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">1</div>
+                      <div>
+                        <p className="font-medium">Register Agent</p>
+                        <p className="text-muted-foreground">Choose "Secure Account" and "Generate Bot Signer"</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">2</div>
+                      <div>
+                        <p className="font-medium">Generate Keypair</p>
+                        <p className="text-muted-foreground">A fresh private key + address is created in your browser</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">3</div>
+                      <div>
+                        <p className="font-medium">Deploy Smart Account</p>
+                        <p className="text-muted-foreground">An ERC-4337 account is deployed with the generated address as signer</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">4</div>
+                      <div>
+                        <p className="font-medium">Save & Configure Bot</p>
+                        <p className="text-muted-foreground">Download the .env file and give it to your bot</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">5</div>
+                      <div>
+                        <p className="font-medium">Set Guardrails</p>
+                        <p className="text-muted-foreground">Create policies with spending limits — enforced on-chain</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

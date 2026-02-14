@@ -4,7 +4,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Shield, ShieldCheck, Bot, FileCheck, Activity } from 'lucide-react'
+import { Shield, ShieldCheck, Bot, FileCheck, Activity, Key } from 'lucide-react'
 import Link from 'next/link'
 
 export default function Home() {
@@ -35,11 +35,11 @@ export default function Home() {
       <main className="container mx-auto px-4 py-16">
         <div className="text-center mb-16">
           <h1 className="text-4xl md:text-6xl font-bold mb-4">
-            Guardrails for Your AI Agents
+            Smart Accounts for Your AI Agents
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            Safely authorize what your AI agents can do on-chain.
-            Guaranteed enforcement via Guardrail Secure Accounts, advisory monitoring for external wallets, and complete audit trails.
+            Give your bots their own wallets — separated from yours — with built-in spending limits.
+            Generate a dedicated keypair, deploy a smart account, and set guardrails on what your agent can do on-chain.
           </p>
 
           {!isConnected ? (
@@ -73,10 +73,20 @@ export default function Home() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card>
             <CardHeader>
-              <Bot className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Agent Management</CardTitle>
+              <Key className="h-10 w-10 text-primary mb-2" />
+              <CardTitle>Bot Signer Generation</CardTitle>
               <CardDescription>
-                Register and manage your AI agents with on-chain identity
+                Generate a dedicated keypair for your bot — completely separate from your personal wallet. Never share your private keys with agents.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <ShieldCheck className="h-10 w-10 text-primary mb-2" />
+              <CardTitle>Smart Account Deployment</CardTitle>
+              <CardDescription>
+                Deploy an ERC-4337 smart account for your bot with built-in spending limits. Unauthorized transactions are blocked on-chain.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -84,19 +94,9 @@ export default function Home() {
           <Card>
             <CardHeader>
               <FileCheck className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Policy Engine</CardTitle>
+              <CardTitle>Spending Guardrails</CardTitle>
               <CardDescription>
-                Define granular policies for actions, assets, and constraints
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <Shield className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Two Enforcement Tiers</CardTitle>
-              <CardDescription>
-                Monitor external wallets with advisory alerts, or guarantee enforcement with Guardrail Secure Accounts — unauthorized transactions cannot execute
+                Set per-transaction limits, daily volume caps, and action allowlists. Define exactly what your bot can and cannot do.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -104,9 +104,9 @@ export default function Home() {
           <Card>
             <CardHeader>
               <Activity className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Audit Trail</CardTitle>
+              <CardTitle>Complete Audit Trail</CardTitle>
               <CardDescription>
-                Complete history of all actions, validations, and policy changes
+                Every action, validation, and policy change is logged. Full visibility into what your agents are doing.
               </CardDescription>
             </CardHeader>
           </Card>

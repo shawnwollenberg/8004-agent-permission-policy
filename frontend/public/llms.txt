@@ -1,0 +1,173 @@
+# Guardrail
+
+> Smart account permissions and spending guardrails for AI agents on Ethereum.
+
+Guardrail lets you create dedicated smart accounts for AI bots — completely separated from your personal wallet — with built-in spending limits enforced on-chain.
+
+## What Guardrail Does
+
+Guardrail solves the problem of giving AI bots autonomous on-chain access without risking your personal wallet. Instead of sharing your private key with a bot, Guardrail:
+
+1. Generates a fresh keypair for each bot (client-side, never stored)
+2. Deploys an ERC-4337 smart account with the generated address as signer
+3. Enforces spending policies on-chain via PermissionEnforcer
+4. Provides a validation API for pre-flight action checks
+5. Logs every action for auditing and compliance
+
+## Core Concepts
+
+### Bot Signer Generation
+Generate a dedicated keypair for your bot during agent creation. The private key is shown once and never stored on any server. Your personal wallet stays completely separate from the bot's wallet. The bot gets its own smart account that you fund with only what it needs.
+
+### Smart Accounts (ERC-4337)
+Each bot operates through an ERC-4337 smart account. The smart account calls PermissionEnforcer during validateUserOp — transactions that violate policy revert before execution. This means even if the bot is compromised, it physically cannot exceed the spending limits you set.
+
+### Policies
+Policies define what a bot can do:
+- Actions: swap, transfer, stake, etc.
+- Assets: specific tokens, protocols, chains
+- Constraints: max value per transaction, daily volume cap, transaction count limit
+- Duration: valid from/until timestamps
+
+### Permissions
+Permissions link an agent to a policy. When you grant a permission, the agent can perform actions within that policy's rules. Permissions can be minted on-chain as ERC-8004 tokens.
+
+### Enforcement Tiers
+- Advisory (EOA): Off-chain validation API with monitoring and alerts. Cannot prevent on-chain execution.
+- Enforced (Smart Account): On-chain + off-chain enforcement. Unauthorized transactions revert automatically.
+
+## API Reference
+
+Base URL: https://your-backend-url
+
+### Authentication
+- API Key: `X-API-Key: YOUR_API_KEY` (recommended for bots)
+- JWT: `Authorization: Bearer YOUR_TOKEN` (for dashboard sessions)
+
+### Validation
+- `POST /api/v1/validate` — Check if an action is allowed before executing
+- `POST /api/v1/validate/simulate` — Simulate without recording
+- `POST /api/v1/validate/batch` — Validate multiple actions
+
+### Agents
+- `POST /api/v1/agents` — Register an agent (wallet_type: eoa | smart_account)
+- `GET /api/v1/agents` — List agents (includes signer_type: wallet | generated)
+- `GET /api/v1/agents/{id}` — Get agent details
+- `POST /api/v1/agents/{id}/deploy-smart-account` — Deploy smart account (signer_type: wallet | generated)
+- `GET /api/v1/agents/{id}/smart-account` — Get smart account details
+- `POST /api/v1/agents/{id}/upgrade-to-smart-account` — Upgrade EOA to smart account (one-way)
+- `POST /api/v1/agents/{id}/register-onchain` — Register on ERC-8004 identity registry
+
+### Policies
+- `POST /api/v1/policies` — Create policy
+- `GET /api/v1/policies` — List policies
+- `GET /api/v1/policies/{id}` — Get policy details
+- `PUT /api/v1/policies/{id}` — Update policy
+- `POST /api/v1/policies/{id}/activate` — Activate policy
+- `POST /api/v1/policies/{id}/revoke` — Revoke policy
+
+### Permissions
+- `POST /api/v1/permissions` — Grant permission (link agent to policy)
+- `GET /api/v1/permissions` — List permissions
+- `POST /api/v1/permissions/{id}/mint` — Mint permission on-chain
+- `DELETE /api/v1/permissions/{id}` — Revoke permission
+
+### Audit
+- `GET /api/v1/audit` — Query audit logs (filter by event_type, agent_id, date range)
+- `GET /api/v1/audit/export` — Export logs as JSON or CSV
+
+## Validate API Example
+
+```
+POST /api/v1/validate
+X-API-Key: YOUR_API_KEY
+Content-Type: application/json
+
+{
+  "agent_id": "your-agent-uuid",
+  "action": {
+    "type": "swap",
+    "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "amount": "1000",
+    "protocol": "uniswap-v3"
+  }
+}
+
+Response (allowed):
+{
+  "allowed": true,
+  "permission_id": "...",
+  "policy_id": "...",
+  "constraints": {
+    "maxValuePerTx": "5000",
+    "maxDailyVolume": "50000"
+  },
+  "enforcement_level": "enforced",
+  "wallet_type": "smart_account",
+  "onchain_enforced": true,
+  "request_id": "..."
+}
+
+Response (denied):
+{
+  "allowed": false,
+  "reason": "exceeds maximum transaction value",
+  "request_id": "..."
+}
+```
+
+## Policy Definition Schema
+
+```json
+{
+  "actions": ["swap", "transfer"],
+  "assets": {
+    "tokens": ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"],
+    "protocols": ["uniswap-v3"],
+    "chains": [1, 11155111]
+  },
+  "constraints": {
+    "maxValuePerTx": "5000",
+    "maxDailyVolume": "50000",
+    "maxTxCount": 100
+  },
+  "duration": {
+    "validFrom": "2024-01-01T00:00:00Z",
+    "validUntil": "2024-12-31T23:59:59Z"
+  }
+}
+```
+
+## Smart Contracts (Sepolia)
+
+- IdentityRegistry: 0xc1fa477f991C74Cc665E605fC74f0e2B795b5104
+- PolicyRegistry: 0x92cd41e6a4aA13072CeBCda8830d48f269F058c4
+- PermissionEnforcer: 0xBe1cd378Ec32Feb71851B2EFbb0D9c6635cc22DF
+- AgentAccountFactory: 0x28bd44158F7A824eB20330D761035cCb7D1D2AD5
+- EntryPoint (v0.6): 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
+- Chain ID: 11155111
+
+## Technology Stack
+
+- Backend: Go 1.22, Chi router, PostgreSQL (pgx), zerolog
+- Frontend: Next.js 15, React 18, Wagmi, RainbowKit, Tailwind CSS
+- Contracts: Solidity 0.8.24, Foundry, ERC-8004 + ERC-4337
+- Auth: Sign-In with Ethereum (SIWE) + JWT + API keys
+- Infrastructure: Railway (backend) + Vercel (frontend) + Sepolia (contracts)
+
+## Integration Quick Start
+
+1. Connect wallet and sign in at the Guardrail dashboard
+2. Register an agent with "Secure Account" + "Generate Bot Signer"
+3. Click "Generate Key" then "Register Agent"
+4. Download the .env file from the private key reveal dialog
+5. Create a policy with spending limits and activate it
+6. Grant permission linking the agent to the policy
+7. Create an API key in Settings
+8. Use the validate API in your bot's code before each on-chain action
+
+## Links
+
+- Dashboard: /
+- Documentation: /docs
+- About: /about
