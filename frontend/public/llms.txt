@@ -167,6 +167,22 @@ Response (denied):
 7. Create an API key in Settings
 8. Use the validate API in your bot's code before each on-chain action
 
+## Funding a Smart Account
+
+Send ETH to the smart account address from any wallet. The smart account accepts ETH from any source. Copy the address from the agent card in the dashboard and send ETH via MetaMask or any wallet.
+
+## Withdrawing from a Smart Account
+
+Withdrawal method depends on signer type:
+
+### Wallet Signer (Connected Wallet)
+Your MetaMask wallet is the smart account owner. Use the Withdraw button in the agent card dropdown menu. The transaction is signed by MetaMask directly.
+
+### Generated Bot Signer
+The bot's private key is the smart account owner. Two options:
+1. **Dashboard withdrawal:** Click Withdraw in the agent card menu, paste the bot's private key from your .env file. The key signs the transaction client-side in your browser — it is never sent to any server. The key is validated against the bot's signer address and cleared from memory after use.
+2. **Bot-initiated withdrawal:** The bot calls `execute(destinationAddress, amount, "0x")` on its smart account contract using its private key.
+
 ## Links
 
 - Dashboard: /

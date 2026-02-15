@@ -15,6 +15,9 @@ import {
   BookOpen,
   ArrowRight,
   CheckCircle,
+  ArrowDownToLine,
+  Send,
+  Workflow,
 } from 'lucide-react'
 
 export default function DocsPage() {
@@ -50,9 +53,10 @@ export default function DocsPage() {
           </div>
 
           <Tabs defaultValue="quickstart" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="quickstart">Quick Start</TabsTrigger>
               <TabsTrigger value="concepts">Concepts</TabsTrigger>
+              <TabsTrigger value="workflows">Workflows</TabsTrigger>
               <TabsTrigger value="api">API Reference</TabsTrigger>
               <TabsTrigger value="integration">Integration</TabsTrigger>
             </TabsList>
@@ -256,6 +260,269 @@ export default function DocsPage() {
                   </CardContent>
                 </Card>
               </div>
+            </TabsContent>
+
+            <TabsContent value="workflows" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Send className="h-5 w-5" />
+                    Funding a Smart Account
+                  </CardTitle>
+                  <CardDescription>
+                    Send ETH to your bot&apos;s smart account so it can operate
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    After creating a Secure Account agent, you need to fund it with ETH for gas and operations.
+                    The smart account is a standard Ethereum address that accepts ETH from any source.
+                  </p>
+                  <div className="space-y-3">
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                        1
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm">Copy the Smart Account address</h4>
+                        <p className="text-muted-foreground text-sm">
+                          Find the address on the agent card under &ldquo;Secure Account&rdquo; and click the copy icon.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                        2
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm">Send ETH from your wallet</h4>
+                        <p className="text-muted-foreground text-sm">
+                          Open MetaMask (or your preferred wallet) and send ETH to the smart account address.
+                          Only send what the bot needs — spending limits protect the rest.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ArrowDownToLine className="h-5 w-5" />
+                    Withdrawing from a Smart Account
+                  </CardTitle>
+                  <CardDescription>
+                    Retrieve ETH from a smart account back to your personal wallet
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    How you withdraw depends on your signer type. Both methods are available from the
+                    agent card dropdown menu under <strong>Withdraw</strong>.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div className="rounded-lg border p-4">
+                      <h4 className="font-semibold mb-2 flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-primary" />
+                        Wallet Signer (Connected Wallet)
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Your connected MetaMask wallet is the smart account owner, so it can call
+                        the <code className="bg-muted px-1 rounded">execute()</code> function directly.
+                      </p>
+                      <ol className="space-y-2 text-sm">
+                        <li className="flex gap-2">
+                          <span className="font-mono text-primary">1.</span>
+                          Click the three-dot menu on the agent card
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-mono text-primary">2.</span>
+                          Select <strong>Withdraw</strong>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-mono text-primary">3.</span>
+                          Enter the amount and click Withdraw
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-mono text-primary">4.</span>
+                          Confirm the transaction in MetaMask
+                        </li>
+                      </ol>
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                      <h4 className="font-semibold mb-2 flex items-center gap-2">
+                        <Key className="h-4 w-4 text-primary" />
+                        Generated Bot Signer
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        The bot&apos;s generated private key is the smart account owner. To withdraw from the dashboard,
+                        you&apos;ll paste the bot&apos;s private key to sign the transaction client-side. The key is
+                        used in your browser only and is never sent to any server.
+                      </p>
+                      <ol className="space-y-2 text-sm">
+                        <li className="flex gap-2">
+                          <span className="font-mono text-primary">1.</span>
+                          Click the three-dot menu on the agent card
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-mono text-primary">2.</span>
+                          Select <strong>Withdraw</strong>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-mono text-primary">3.</span>
+                          Paste the bot&apos;s private key (from the .env file you downloaded)
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-mono text-primary">4.</span>
+                          Enter the amount and click Withdraw
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-mono text-primary">5.</span>
+                          The transaction is signed in your browser and broadcast directly
+                        </li>
+                      </ol>
+                      <div className="flex items-start gap-2 mt-3 rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-2">
+                        <CheckCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          The private key is validated against the bot&apos;s signer address before use.
+                          It is cleared from browser memory after the transaction completes.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted p-4">
+                    <h4 className="font-semibold text-sm mb-2">Programmatic Withdrawal (Bot-Initiated)</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Your bot can also withdraw funds by calling <code className="bg-background px-1 rounded">execute()</code> on its smart account:
+                    </p>
+                    <div className="bg-background rounded-lg p-3 overflow-x-auto">
+                      <pre className="text-xs">{`import { createWalletClient, http, encodeFunctionData } from "viem";
+import { sepolia } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+
+const account = privateKeyToAccount(process.env.BOT_PRIVATE_KEY);
+const client = createWalletClient({
+  account,
+  chain: sepolia,
+  transport: http(),
+});
+
+// Call execute() on the smart account to send ETH
+const hash = await client.sendTransaction({
+  to: process.env.SMART_ACCOUNT_ADDRESS,
+  data: encodeFunctionData({
+    abi: [{
+      name: "execute",
+      type: "function",
+      inputs: [
+        { name: "target", type: "address" },
+        { name: "value", type: "uint256" },
+        { name: "data", type: "bytes" },
+      ],
+      outputs: [],
+    }],
+    functionName: "execute",
+    args: [
+      "0xYOUR_WALLET_ADDRESS",  // destination
+      parseEther("0.1"),         // amount
+      "0x",                      // empty calldata (ETH transfer)
+    ],
+  }),
+});`}</pre>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Workflow className="h-5 w-5" />
+                    End-to-End: Creating and Running a Bot
+                  </CardTitle>
+                  <CardDescription>
+                    Complete workflow from agent creation to autonomous operation
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                        1
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm">Create agent with Generate Bot Signer</h4>
+                        <p className="text-muted-foreground text-sm">
+                          Register an agent, select Secure Account, click Generate Bot Signer, then Register.
+                          Download the .env file when the private key is revealed.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                        2
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm">Fund the smart account</h4>
+                        <p className="text-muted-foreground text-sm">
+                          Send ETH from your MetaMask wallet to the smart account address shown on the agent card.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                        3
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm">Create and activate a policy</h4>
+                        <p className="text-muted-foreground text-sm">
+                          Define what the bot can do: allowed actions, token allowlist, spending limits, and duration.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                        4
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm">Grant permission and create an API key</h4>
+                        <p className="text-muted-foreground text-sm">
+                          Link the agent to the policy, then create an API key in Settings for the bot to use.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                        5
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm">Configure and run the bot</h4>
+                        <p className="text-muted-foreground text-sm">
+                          Give the bot the .env file (private key, smart account address, EntryPoint, chain ID)
+                          and the API key. The bot validates actions via the API, then submits UserOperations
+                          signed with its private key.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                        6
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm">Monitor and withdraw</h4>
+                        <p className="text-muted-foreground text-sm">
+                          Check the Audit page for the bot&apos;s activity. When you want to reclaim funds,
+                          use the Withdraw feature from the agent card menu with the bot&apos;s private key.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="api" className="space-y-6">

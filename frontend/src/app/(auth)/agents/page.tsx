@@ -14,7 +14,8 @@ import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck,
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { parseEther, formatEther } from 'viem'
+import { parseEther, formatEther, createWalletClient, http, encodeFunctionData } from 'viem'
+import { sepolia } from 'viem/chains'
 import { useToast } from '@/hooks/useToast'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 
@@ -57,6 +58,10 @@ export default function AgentsPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false)
   const [withdrawAgent, setWithdrawAgent] = useState<Agent | null>(null)
   const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [botKeyInput, setBotKeyInput] = useState('')
+  const [showBotKeyInput, setShowBotKeyInput] = useState(false)
+  const [botKeyTxHash, setBotKeyTxHash] = useState<string | null>(null)
+  const [botKeyTxStatus, setBotKeyTxStatus] = useState<'idle' | 'sending' | 'confirming' | 'confirmed' | 'error'>('idle')
 
   const { toast } = useToast()
 
@@ -265,14 +270,23 @@ export default function AgentsPage() {
   const handleOpenWithdraw = (agent: Agent) => {
     setWithdrawAgent(agent)
     setWithdrawAmount('')
+    setBotKeyInput('')
+    setShowBotKeyInput(false)
+    setBotKeyTxHash(null)
+    setBotKeyTxStatus('idle')
     resetWithdraw()
     setWithdrawOpen(true)
-    // Refetch balance when opening
     setTimeout(() => refetchBalance(), 100)
   }
 
   const handleWithdraw = () => {
     if (!withdrawAgent?.smart_account_address || !address || !withdrawAmount) return
+
+    if (withdrawAgent.signer_type === 'generated') {
+      handleBotKeyWithdraw()
+      return
+    }
+
     try {
       const amountWei = parseEther(withdrawAmount)
       writeContract({
@@ -286,10 +300,83 @@ export default function AgentsPage() {
     }
   }
 
+  const handleBotKeyWithdraw = async () => {
+    if (!withdrawAgent?.smart_account_address || !address || !withdrawAmount || !botKeyInput) return
+
+    try {
+      // Validate the private key matches the agent's signer
+      const key = (botKeyInput.startsWith('0x') ? botKeyInput : `0x${botKeyInput}`) as `0x${string}`
+      const account = privateKeyToAccount(key)
+
+      if (withdrawAgent.signer_address && account.address.toLowerCase() !== withdrawAgent.signer_address.toLowerCase()) {
+        toast({ title: 'Key mismatch', description: 'This private key does not match the bot signer address', variant: 'destructive' })
+        return
+      }
+
+      setBotKeyTxStatus('sending')
+
+      const walletClient = createWalletClient({
+        account,
+        chain: sepolia,
+        transport: http(),
+      })
+
+      const amountWei = parseEther(withdrawAmount)
+      const data = encodeFunctionData({
+        abi: EXECUTE_ABI,
+        functionName: 'execute',
+        args: [address, amountWei, '0x'],
+      })
+
+      const hash = await walletClient.sendTransaction({
+        to: withdrawAgent.smart_account_address as `0x${string}`,
+        data,
+      })
+
+      setBotKeyTxHash(hash)
+      setBotKeyTxStatus('confirming')
+
+      // Wait for confirmation by polling
+      const { createPublicClient } = await import('viem')
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http(),
+      })
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+
+      if (receipt.status === 'success') {
+        setBotKeyTxStatus('confirmed')
+        toast({ title: 'Withdrawal confirmed', description: 'Sent to your wallet', variant: 'success' })
+        // Clear the bot key from memory
+        setBotKeyInput('')
+        setTimeout(() => {
+          setWithdrawOpen(false)
+          setWithdrawAgent(null)
+          setWithdrawAmount('')
+          setBotKeyTxHash(null)
+          setBotKeyTxStatus('idle')
+          refetchBalance()
+        }, 1500)
+      } else {
+        setBotKeyTxStatus('error')
+        toast({ title: 'Transaction reverted', variant: 'destructive' })
+      }
+    } catch (e) {
+      setBotKeyTxStatus('error')
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      toast({ title: 'Withdrawal failed', description: msg.slice(0, 100), variant: 'destructive' })
+    }
+  }
+
   const handleCloseWithdraw = () => {
     setWithdrawOpen(false)
     setWithdrawAgent(null)
     setWithdrawAmount('')
+    setBotKeyInput('')
+    setShowBotKeyInput(false)
+    setBotKeyTxHash(null)
+    setBotKeyTxStatus('idle')
     resetWithdraw()
   }
 
@@ -658,7 +745,7 @@ export default function AgentsPage() {
       <Dialog.Root open={withdrawOpen} onOpenChange={(open) => { if (!open) handleCloseWithdraw() }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg">
+          <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg max-h-[90vh] overflow-y-auto">
             <Dialog.Title className="text-lg font-semibold flex items-center gap-2">
               <ArrowDownToLine className="h-5 w-5" />
               Withdraw from Secure Account
@@ -686,6 +773,39 @@ export default function AgentsPage() {
                   </div>
                 </div>
 
+                {/* Bot signer key input for generated signers */}
+                {withdrawAgent.signer_type === 'generated' && (
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        This account uses a generated bot signer. Paste the bot&apos;s private key to sign the withdrawal. The key is used client-side only and is never sent to any server.
+                      </p>
+                    </div>
+                    <div>
+                      <Label htmlFor="bot-key">Bot Private Key</Label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Input
+                          id="bot-key"
+                          type={showBotKeyInput ? 'text' : 'password'}
+                          value={botKeyInput}
+                          onChange={(e) => setBotKeyInput(e.target.value)}
+                          placeholder="0x..."
+                          className="font-mono text-sm"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setShowBotKeyInput(!showBotKeyInput)}
+                          title={showBotKeyInput ? 'Hide' : 'Show'}
+                        >
+                          {showBotKeyInput ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <Label htmlFor="withdraw-amount">Amount (ETH)</Label>
                   <div className="flex gap-2 mt-1">
@@ -712,10 +832,23 @@ export default function AgentsPage() {
                   </div>
                 </div>
 
+                {/* Transaction status for wallet signer */}
                 {withdrawTxHash && !isWithdrawConfirmed && (
                   <div className="rounded-md border bg-muted/50 p-3 text-sm">
                     <p className="text-muted-foreground">Transaction submitted, waiting for confirmation...</p>
                     <p className="font-mono text-xs mt-1 break-all">{withdrawTxHash}</p>
+                  </div>
+                )}
+
+                {/* Transaction status for bot key signer */}
+                {botKeyTxHash && (
+                  <div className="rounded-md border bg-muted/50 p-3 text-sm">
+                    <p className="text-muted-foreground">
+                      {botKeyTxStatus === 'confirming' ? 'Transaction submitted, waiting for confirmation...' :
+                       botKeyTxStatus === 'confirmed' ? 'Transaction confirmed!' :
+                       botKeyTxStatus === 'error' ? 'Transaction failed' : 'Sending...'}
+                    </p>
+                    <p className="font-mono text-xs mt-1 break-all">{botKeyTxHash}</p>
                   </div>
                 )}
 
@@ -725,9 +858,19 @@ export default function AgentsPage() {
                   </Button>
                   <Button
                     onClick={handleWithdraw}
-                    disabled={!withdrawAmount || isWithdrawPending || isWithdrawConfirming || !smartAccountBalance || smartAccountBalance.value === BigInt(0)}
+                    disabled={
+                      !withdrawAmount ||
+                      !smartAccountBalance ||
+                      smartAccountBalance.value === BigInt(0) ||
+                      (withdrawAgent.signer_type === 'generated'
+                        ? !botKeyInput || botKeyTxStatus === 'sending' || botKeyTxStatus === 'confirming'
+                        : isWithdrawPending || isWithdrawConfirming)
+                    }
                   >
-                    {isWithdrawPending ? 'Confirm in wallet...' : isWithdrawConfirming ? 'Confirming...' : 'Withdraw'}
+                    {withdrawAgent.signer_type === 'generated'
+                      ? (botKeyTxStatus === 'sending' ? 'Signing...' : botKeyTxStatus === 'confirming' ? 'Confirming...' : 'Withdraw')
+                      : (isWithdrawPending ? 'Confirm in wallet...' : isWithdrawConfirming ? 'Confirming...' : 'Withdraw')
+                    }
                   </Button>
                 </div>
               </div>
@@ -801,7 +944,7 @@ export default function AgentsPage() {
                           Deploy Secure Account
                         </DropdownMenu.Item>
                       )}
-                      {agent.wallet_type === 'smart_account' && agent.smart_account_address && agent.signer_type !== 'generated' && (
+                      {agent.wallet_type === 'smart_account' && agent.smart_account_address && (
                         <DropdownMenu.Item
                           className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
                           onClick={() => handleOpenWithdraw(agent)}
