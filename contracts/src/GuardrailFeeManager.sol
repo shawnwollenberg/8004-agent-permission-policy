@@ -10,8 +10,12 @@ import "./PriceOracle.sol";
  */
 contract GuardrailFeeManager {
     address public owner;
+    address public pendingOwner;
     address public feeCollector;
     PriceOracle public priceOracle;
+
+    // Maximum transfer fee: 10% (1000 bps) — immutable safety cap
+    uint256 public constant MAX_TRANSFER_FEE_BPS = 1000;
 
     // Stored as 6-decimal USD (e.g. 10_000000 = $10)
     uint256 public creationFeeUsd;
@@ -21,8 +25,12 @@ contract GuardrailFeeManager {
     uint256 public transferFeeCapUsd;
 
     error NotOwner();
+    error NotPendingOwner();
     error ZeroAddress();
+    error FeeTooHigh();
 
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event FeeCollectorUpdated(address indexed newCollector);
     event CreationFeeUpdated(uint256 newFeeUsd);
     event TransferFeeUpdated(uint256 newBps, uint256 newCapUsd);
@@ -42,6 +50,7 @@ contract GuardrailFeeManager {
     ) {
         if (_priceOracle == address(0)) revert ZeroAddress();
         if (_feeCollector == address(0)) revert ZeroAddress();
+        if (_transferFeeBps > MAX_TRANSFER_FEE_BPS) revert FeeTooHigh();
 
         owner = msg.sender;
         priceOracle = PriceOracle(_priceOracle);
@@ -89,6 +98,7 @@ contract GuardrailFeeManager {
     }
 
     function setTransferFee(uint256 _transferFeeBps, uint256 _transferFeeCapUsd) external onlyOwner {
+        if (_transferFeeBps > MAX_TRANSFER_FEE_BPS) revert FeeTooHigh();
         transferFeeBps = _transferFeeBps;
         transferFeeCapUsd = _transferFeeCapUsd;
         emit TransferFeeUpdated(_transferFeeBps, _transferFeeCapUsd);
@@ -98,6 +108,19 @@ contract GuardrailFeeManager {
         if (_priceOracle == address(0)) revert ZeroAddress();
         priceOracle = PriceOracle(_priceOracle);
         emit PriceOracleUpdated(_priceOracle);
+    }
+
+    function transferOwnership(address _newOwner) external onlyOwner {
+        if (_newOwner == address(0)) revert ZeroAddress();
+        pendingOwner = _newOwner;
+        emit OwnershipTransferStarted(owner, _newOwner);
+    }
+
+    function acceptOwnership() external {
+        if (msg.sender != pendingOwner) revert NotPendingOwner();
+        emit OwnershipTransferred(owner, pendingOwner);
+        owner = pendingOwner;
+        pendingOwner = address(0);
     }
 
     /**

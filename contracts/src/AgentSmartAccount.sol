@@ -83,6 +83,27 @@ contract AgentSmartAccount is IAccount {
                     return SIG_VALIDATION_FAILED;
                 }
             }
+
+            // Check if this is an executeBatch call — validate each sub-call
+            if (selector == this.executeBatch.selector && userOp.callData.length >= 68) {
+                (address[] memory targets, uint256[] memory values, ) =
+                    abi.decode(userOp.callData[4:], (address[], uint256[], bytes[]));
+
+                for (uint256 i = 0; i < targets.length; i++) {
+                    bytes32 actionHash = _getActionHash(targets[i], selector);
+                    bytes memory actionData = abi.encode(values[i], targets[i], address(0), block.chainid);
+
+                    IERC8004ValidationRegistry.ValidationResult memory result = enforcer.validateAction(
+                        agentId, actionHash, actionData
+                    );
+
+                    emit EnforcementResult(agentId, actionHash, result.valid);
+
+                    if (!result.valid) {
+                        return SIG_VALIDATION_FAILED;
+                    }
+                }
+            }
         }
 
         // Prefund entrypoint if needed
@@ -107,7 +128,7 @@ contract AgentSmartAccount is IAccount {
             fee = feeManager.calculateTransferFee(value);
             if (fee > 0) {
                 address collector = feeManager.feeCollector();
-                (bool feeSent, ) = payable(collector).call{value: fee}("");
+                (bool feeSent, ) = payable(collector).call{value: fee, gas: 2300}("");
                 if (!feeSent) revert FeeTransferFailed();
             }
         }
@@ -139,7 +160,7 @@ contract AgentSmartAccount is IAccount {
                 fee = feeManager.calculateTransferFee(values[i]);
                 if (fee > 0) {
                     address collector = feeManager.feeCollector();
-                    (bool feeSent, ) = payable(collector).call{value: fee}("");
+                    (bool feeSent, ) = payable(collector).call{value: fee, gas: 2300}("");
                     if (!feeSent) revert FeeTransferFailed();
                     totalFees += fee;
                 }

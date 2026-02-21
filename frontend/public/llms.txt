@@ -82,7 +82,7 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
   - `getAgentPermissions(bytes32 agentId) → bytes32[]` — Get all permissions for an agent
 
 ### PermissionEnforcer
-- **Address:** 0xBe1cd378Ec32Feb71851B2EFbb0D9c6635cc22DF
+- **Address:** 0x94991827135fbd0E681B3db51699e4988a7752f1
 - **Purpose:** Action validation with constraints (value limits, volume caps, tx count, token/protocol/chain allowlists)
 - **Key functions:**
   - `validateAction(bytes32 agentId, bytes32 actionHash, bytes actionData) → ValidationResult` — Validate an action against permissions
@@ -101,7 +101,7 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
   - `STALENESS_THRESHOLD` — 1 hour; reverts if price feed is stale
 
 ### GuardrailFeeManager
-- **Address:** Deployed with fee upgrade (see deploy script)
+- **Address:** 0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12
 - **Purpose:** Centralized fee configuration for all accounts and the factory
 - **Why separate contract:** AgentSmartAccount uses immutable state. If fee config were inline, rates would be baked into each account's bytecode and could never change. FeeManager lets all accounts read current config at runtime.
 - **Key functions:**
@@ -117,7 +117,7 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
   - `setPriceOracle(address)` — Update price oracle (owner only)
 
 ### AgentAccountFactory
-- **Address:** 0xA6F9dA39086CD7142c1494B062D70c8fB7e3896f
+- **Address:** 0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E
 - **Purpose:** CREATE2 factory for deterministic smart account deployment with creation fee
 - **Key functions:**
   - `createAccount(address owner, bytes32 agentId, bytes32 salt) payable → address` — Deploy smart account (requires creation fee as msg.value; idempotent — refunds on duplicate)

@@ -740,7 +740,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Action validation with constraints (value, volume, tx count, tokens, protocols, chains)</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xBe1cd378Ec32Feb71851B2EFbb0D9c6635cc22DF</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x94991827135fbd0E681B3db51699e4988a7752f1</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> validateAction, setConstraints, recordUsage, getRemainingQuota
                     </p>
@@ -772,7 +772,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Centralized fee configuration for account creation and transfer fees</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded italic">Deployed with next upgrade</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> getCreationFeeWei, calculateTransferFee, feeCollector
                     </p>
@@ -788,7 +788,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">CREATE2 factory for deterministic smart account deployment</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xA6F9dA39086CD7142c1494B062D70c8fB7e3896f</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> createAccount (payable), getAddress, getCreationFee
                     </p>

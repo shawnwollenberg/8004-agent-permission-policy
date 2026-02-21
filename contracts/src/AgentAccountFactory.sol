@@ -66,9 +66,9 @@ contract AgentAccountFactory {
             address(feeManager)
         );
 
-        // Send creation fee to fee collector
+        // Send creation fee to fee collector (gas-limited to prevent reentrancy/DOS)
         address collector = feeManager.feeCollector();
-        (bool sent, ) = payable(collector).call{value: requiredFee}("");
+        (bool sent, ) = payable(collector).call{value: requiredFee, gas: 2300}("");
         if (!sent) revert FeeTransferFailed();
 
         // Refund excess
