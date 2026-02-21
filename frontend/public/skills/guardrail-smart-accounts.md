@@ -108,19 +108,29 @@ const transferFee = await publicClient.readContract({
 | $100,000 | $100 | Cap reached |
 | $2,000,000 | $100 | Cap applies |
 
-## Smart Contract Addresses (Sepolia)
+## Smart Contract Addresses (Base Mainnet — Chain ID 8453)
 
 | Contract | Address |
 |----------|---------|
 | IdentityRegistry | `0xc1fa477f991C74Cc665E605fC74f0e2B795b5104` |
 | PolicyRegistry | `0x92cd41e6a4aA13072CeBCda8830d48f269F058c4` |
-| PriceOracle | `0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8` |
+| PermissionEnforcer | `0xbF63Fa97cfBba99647B410f205730d63d831061c` |
+| PriceOracle | `0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3` |
+| GuardrailFeeManager | `0xD1B7Bd65F2aB60ff84CdDF48f306a599b01d293A` |
+| AgentAccountFactory | `0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C` |
 | EntryPoint (v0.6) | `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789` |
-| Chain ID | `11155111` |
 
+## Smart Contract Addresses (Sepolia Testnet — Chain ID 11155111)
+
+| Contract | Address |
+|----------|---------|
+| IdentityRegistry | `0xc1fa477f991C74Cc665E605fC74f0e2B795b5104` |
+| PolicyRegistry | `0x92cd41e6a4aA13072CeBCda8830d48f269F058c4` |
 | PermissionEnforcer | `0x94991827135fbd0E681B3db51699e4988a7752f1` |
+| PriceOracle | `0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8` |
 | GuardrailFeeManager | `0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12` |
 | AgentAccountFactory | `0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E` |
+| EntryPoint (v0.6) | `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789` |
 
 ## Key Function Signatures
 

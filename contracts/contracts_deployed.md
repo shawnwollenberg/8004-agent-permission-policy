@@ -1,4 +1,52 @@
-Contracts deployed and verified on Sepolia!
+Contracts deployed and verified on Base Mainnet and Sepolia!
+
+  ============================================================
+  BASE MAINNET (Chain ID 8453)
+  ============================================================
+
+  Deployed Contract Addresses:
+  ┌─────────────────────────────┬────────────────────────────────────────────┬─────────────────────┐
+  │          Contract           │                  Address                   │       Status        │
+  ├─────────────────────────────┼────────────────────────────────────────────┼─────────────────────┤
+  │ IdentityRegistry            │ 0xc1fa477f991C74Cc665E605fC74f0e2B795b5104 │ Deployed + Verified │
+  ├─────────────────────────────┼────────────────────────────────────────────┼─────────────────────┤
+  │ PolicyRegistry              │ 0x92cd41e6a4aA13072CeBCda8830d48f269F058c4 │ Deployed + Verified │
+  ├─────────────────────────────┼────────────────────────────────────────────┼─────────────────────┤
+  │ PermissionEnforcer          │ 0xbF63Fa97cfBba99647B410f205730d63d831061c │ Deployed + Verified │
+  ├─────────────────────────────┼────────────────────────────────────────────┼─────────────────────┤
+  │ PriceOracle                 │ 0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3 │ Deployed + Verified │
+  ├─────────────────────────────┼────────────────────────────────────────────┼─────────────────────┤
+  │ GuardrailFeeManager         │ 0xD1B7Bd65F2aB60ff84CdDF48f306a599b01d293A │ Deployed + Verified │
+  ├─────────────────────────────┼────────────────────────────────────────────┼─────────────────────┤
+  │ AgentAccountFactory         │ 0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C │ Deployed + Verified │
+  └─────────────────────────────┴────────────────────────────────────────────┴─────────────────────┘
+
+  View on Basescan:
+  - https://basescan.org/address/0xc1fa477f991c74cc665e605fc74f0e2b795b5104
+  - https://basescan.org/address/0x92cd41e6a4aa13072cebcda8830d48f269f058c4
+  - https://basescan.org/address/0xbf63fa97cfbba99647b410f205730d63d831061c
+  - https://basescan.org/address/0xf3c8c6bdc54c60edae6ae84ef05b123597c355b3
+  - https://basescan.org/address/0xd1b7bd65f2ab60ff84cddf48f306a599b01d293a
+  - https://basescan.org/address/0xce621a324a8cb40fd424eb0d41286a97f6a6c91c
+
+  EntryPoint v0.6 (canonical): 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
+
+  Fee Configuration (GuardrailFeeManager):
+  - Creation Fee: $10 USD equivalent in ETH (one-time)
+  - Transfer Fee: 10 bps (0.10%), capped at $100 USD per transaction
+  - Fee Collector: 0xB74FC08ef58C57CC5C8d81477895a83F874D737C
+  - Max Transfer Fee BPS: 1000 (10%) — immutable safety cap
+
+  Chainlink Price Feeds (Base):
+  - ETH/USD: 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70
+  - USDC/USD: 0x7e860098F58bBFC8648a4311b374B1D669a2bc6B
+
+  PriceOracle wired to PermissionEnforcer via setPriceOracle().
+  Token feed configured: USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913).
+
+  ============================================================
+  SEPOLIA TESTNET (Chain ID 11155111)
+  ============================================================
 
   Deployed Contract Addresses:
   ┌─────────────────────────────┬────────────────────────────────────────────┬─────────────────────┐

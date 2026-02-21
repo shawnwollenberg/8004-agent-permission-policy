@@ -375,44 +375,88 @@ else:
                     </li>
                   </ul>
                 </div>
-                <div className="bg-muted rounded-lg p-6">
-                  <h3 className="font-semibold mb-4">Deployed Contracts (Sepolia)</h3>
-                  <div className="space-y-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground mb-1">IdentityRegistry</p>
-                      <code className="text-xs bg-background px-2 py-1 rounded">
-                        0xc1fa477f991C74Cc665E605fC74f0e2B795b5104
-                      </code>
+                <div className="space-y-6">
+                  <div className="bg-muted rounded-lg p-6">
+                    <h3 className="font-semibold mb-4">Deployed Contracts (Base Mainnet)</h3>
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground mb-1">IdentityRegistry</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0xc1fa477f991C74Cc665E605fC74f0e2B795b5104
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">PolicyRegistry</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0x92cd41e6a4aA13072CeBCda8830d48f269F058c4
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">PermissionEnforcer</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0xbF63Fa97cfBba99647B410f205730d63d831061c
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">PriceOracle</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">GuardrailFeeManager</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0xD1B7Bd65F2aB60ff84CdDF48f306a599b01d293A
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">AgentAccountFactory</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C
+                        </code>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">PolicyRegistry</p>
-                      <code className="text-xs bg-background px-2 py-1 rounded">
-                        0x92cd41e6a4aA13072CeBCda8830d48f269F058c4
-                      </code>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">PermissionEnforcer</p>
-                      <code className="text-xs bg-background px-2 py-1 rounded">
-                        0x94991827135fbd0E681B3db51699e4988a7752f1
-                      </code>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">GuardrailFeeManager</p>
-                      <code className="text-xs bg-background px-2 py-1 rounded">
-                        0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12
-                      </code>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">AgentAccountFactory</p>
-                      <code className="text-xs bg-background px-2 py-1 rounded">
-                        0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E
-                      </code>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">PriceOracle</p>
-                      <code className="text-xs bg-background px-2 py-1 rounded">
-                        0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8
-                      </code>
+                  </div>
+
+                  <div className="bg-muted rounded-lg p-6">
+                    <h3 className="font-semibold mb-4">Deployed Contracts (Sepolia Testnet)</h3>
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground mb-1">IdentityRegistry</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0xc1fa477f991C74Cc665E605fC74f0e2B795b5104
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">PolicyRegistry</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0x92cd41e6a4aA13072CeBCda8830d48f269F058c4
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">PermissionEnforcer</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0x94991827135fbd0E681B3db51699e4988a7752f1
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">GuardrailFeeManager</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">AgentAccountFactory</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">PriceOracle</p>
+                        <code className="text-xs bg-background px-2 py-1 rounded">
+                          0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8
+                        </code>
+                      </div>
                     </div>
                   </div>
                 </div>

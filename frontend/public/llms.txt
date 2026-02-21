@@ -61,7 +61,7 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
 | $100,000 | $100.00 (cap) |
 | $2,000,000 | $100.00 (cap) |
 
-## Smart Contracts (Sepolia)
+## Smart Contracts (Base Mainnet — Chain ID 8453)
 
 ### IdentityRegistry
 - **Address:** 0xc1fa477f991C74Cc665E605fC74f0e2B795b5104
@@ -82,7 +82,7 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
   - `getAgentPermissions(bytes32 agentId) → bytes32[]` — Get all permissions for an agent
 
 ### PermissionEnforcer
-- **Address:** 0x94991827135fbd0E681B3db51699e4988a7752f1
+- **Address:** 0xbF63Fa97cfBba99647B410f205730d63d831061c
 - **Purpose:** Action validation with constraints (value limits, volume caps, tx count, token/protocol/chain allowlists)
 - **Key functions:**
   - `validateAction(bytes32 agentId, bytes32 actionHash, bytes actionData) → ValidationResult` — Validate an action against permissions
@@ -92,7 +92,7 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
   - `setPriceOracle(address _priceOracle)` — Set price oracle for cross-token normalization
 
 ### PriceOracle
-- **Address:** 0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8
+- **Address:** 0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3
 - **Purpose:** Chainlink-powered ETH/USD and token price feeds for USD conversion
 - **Key functions:**
   - `getEthUsdPrice() → uint256` — Returns ETH/USD price (8 decimals, e.g. 200000000000 = $2000)
@@ -101,7 +101,7 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
   - `STALENESS_THRESHOLD` — 1 hour; reverts if price feed is stale
 
 ### GuardrailFeeManager
-- **Address:** 0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12
+- **Address:** 0xD1B7Bd65F2aB60ff84CdDF48f306a599b01d293A
 - **Purpose:** Centralized fee configuration for all accounts and the factory
 - **Why separate contract:** AgentSmartAccount uses immutable state. If fee config were inline, rates would be baked into each account's bytecode and could never change. FeeManager lets all accounts read current config at runtime.
 - **Key functions:**
@@ -117,7 +117,7 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
   - `setPriceOracle(address)` — Update price oracle (owner only)
 
 ### AgentAccountFactory
-- **Address:** 0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E
+- **Address:** 0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C
 - **Purpose:** CREATE2 factory for deterministic smart account deployment with creation fee
 - **Key functions:**
   - `createAccount(address owner, bytes32 agentId, bytes32 salt) payable → address` — Deploy smart account (requires creation fee as msg.value; idempotent — refunds on duplicate)
@@ -157,7 +157,19 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
 
 ### Other Contract Details
 - EntryPoint (v0.6): 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
-- Chain ID: 11155111 (Sepolia)
+- Chain ID: 8453 (Base Mainnet)
+
+## Smart Contracts (Sepolia Testnet — Chain ID 11155111)
+
+| Contract | Address |
+|----------|---------|
+| IdentityRegistry | 0xc1fa477f991C74Cc665E605fC74f0e2B795b5104 |
+| PolicyRegistry | 0x92cd41e6a4aA13072CeBCda8830d48f269F058c4 |
+| PermissionEnforcer | 0x94991827135fbd0E681B3db51699e4988a7752f1 |
+| PriceOracle | 0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8 |
+| GuardrailFeeManager | 0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12 |
+| AgentAccountFactory | 0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E |
+| EntryPoint (v0.6) | 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789 |
 
 ## API Reference
 
@@ -267,7 +279,7 @@ Response (denied):
 - Frontend: Next.js 15, React 18, Wagmi, RainbowKit, Tailwind CSS
 - Contracts: Solidity 0.8.24, Foundry, ERC-8004 + ERC-4337
 - Auth: Sign-In with Ethereum (SIWE) + JWT + API keys
-- Infrastructure: Railway (backend) + Vercel (frontend) + Sepolia (contracts)
+- Infrastructure: Railway (backend) + Vercel (frontend) + Base mainnet & Sepolia (contracts)
 
 ## Integration Quick Start
 

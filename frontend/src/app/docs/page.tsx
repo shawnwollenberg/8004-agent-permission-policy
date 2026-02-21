@@ -677,27 +677,28 @@ const hash = await client.sendTransaction({
                     Network Information
                   </CardTitle>
                   <CardDescription>
-                    Guardrail contracts are deployed on Ethereum Sepolia testnet
+                    Guardrail contracts are deployed on Base mainnet and Ethereum Sepolia testnet
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid gap-3 md:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">Network</p>
-                      <p className="font-semibold">Sepolia</p>
+                      <p className="text-xs text-muted-foreground">Base Mainnet</p>
+                      <p className="font-semibold">Chain ID: <span className="font-mono">8453</span></p>
                     </div>
                     <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">Chain ID</p>
-                      <p className="font-semibold font-mono">11155111</p>
+                      <p className="text-xs text-muted-foreground">Sepolia Testnet</p>
+                      <p className="font-semibold">Chain ID: <span className="font-mono">11155111</span></p>
                     </div>
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">EntryPoint (v0.6)</p>
-                      <p className="font-mono text-xs break-all">0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789</p>
-                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3 mt-3">
+                    <p className="text-xs text-muted-foreground">EntryPoint v0.6 (all chains)</p>
+                    <p className="font-mono text-xs break-all">0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789</p>
                   </div>
                 </CardContent>
               </Card>
 
+              <h3 className="text-lg font-semibold mt-2">Base Mainnet</h3>
               <div className="grid gap-4 md:grid-cols-2">
                 <Card>
                   <CardHeader className="pb-3">
@@ -740,7 +741,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Action validation with constraints (value, volume, tx count, tokens, protocols, chains)</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x94991827135fbd0E681B3db51699e4988a7752f1</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xbF63Fa97cfBba99647B410f205730d63d831061c</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> validateAction, setConstraints, recordUsage, getRemainingQuota
                     </p>
@@ -756,7 +757,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Chainlink-powered ETH/USD and token price feeds for USD conversion</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> getEthUsdPrice, getEthValue, setTokenFeed
                     </p>
@@ -772,7 +773,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Centralized fee configuration for account creation and transfer fees</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xD1B7Bd65F2aB60ff84CdDF48f306a599b01d293A</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> getCreationFeeWei, calculateTransferFee, feeCollector
                     </p>
@@ -788,10 +789,91 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">CREATE2 factory for deterministic smart account deployment</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> createAccount (payable), getAddress, getCreationFee
                     </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <h3 className="text-lg font-semibold mt-2">Sepolia Testnet</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Blocks className="h-4 w-4 text-primary" />
+                      IdentityRegistry
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">ERC-8004 agent identity registration</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xc1fa477f991C74Cc665E605fC74f0e2B795b5104</code>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Blocks className="h-4 w-4 text-primary" />
+                      PolicyRegistry
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">On-chain policy and permission storage</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x92cd41e6a4aA13072CeBCda8830d48f269F058c4</code>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-primary" />
+                      PermissionEnforcer
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">Action validation with constraints</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x94991827135fbd0E681B3db51699e4988a7752f1</code>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Blocks className="h-4 w-4 text-primary" />
+                      PriceOracle
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">Chainlink-powered price feeds</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8</code>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                      GuardrailFeeManager
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">Fee configuration for accounts</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12</code>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Blocks className="h-4 w-4 text-primary" />
+                      AgentAccountFactory
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">CREATE2 factory for smart accounts</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E</code>
                   </CardContent>
                 </Card>
               </div>
