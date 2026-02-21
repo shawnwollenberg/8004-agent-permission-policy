@@ -35,6 +35,7 @@ type SmartAccount struct {
 type DeploySmartAccountRequest struct {
 	SignerAddress string `json:"signer_address"`
 	SignerType    string `json:"signer_type,omitempty"`
+	ChainID      int64  `json:"chain_id,omitempty"`
 }
 
 // DeploySmartAccount deploys a new ERC-4337 smart account for an agent.
@@ -96,6 +97,9 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve blockchain client for requested chain
+	bc := h.clientForChain(req.ChainID)
+
 	// Generate deterministic salt from agent UUID
 	saltBytes := sha256.Sum256([]byte(agentID.String()))
 	salt := "0x" + hex.EncodeToString(saltBytes[:])
@@ -106,10 +110,10 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 	var deployTxHash *string
 	deployed := false
 
-	if !h.blockchainClient.IsSimulated() {
+	if !bc.IsSimulated() {
 		// Live mode: deploy on-chain
 		owner := common.HexToAddress(req.SignerAddress)
-		addr, txHash, err := h.blockchainClient.CreateSmartAccount(r.Context(), owner, agentIDBytes32, saltBytes)
+		addr, txHash, err := bc.CreateSmartAccount(r.Context(), owner, agentIDBytes32, saltBytes)
 		if err != nil {
 			h.logger.Error().Err(err).Msg("on-chain smart account deployment failed")
 			respondError(w, http.StatusInternalServerError, "on-chain deployment failed: "+err.Error())
@@ -120,7 +124,7 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 		deployed = true
 	} else {
 		// Simulated mode: compute deterministic address
-		addr, err := h.blockchainClient.ComputeSmartAccountAddress(req.SignerAddress, agentID.String(), salt)
+		addr, err := bc.ComputeSmartAccountAddress(req.SignerAddress, agentID.String(), salt)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to compute address")
 			return
@@ -128,12 +132,12 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 		predictedAddress = addr
 	}
 
-	factoryAddress := h.blockchainClient.FactoryAddress()
+	factoryAddress := bc.FactoryAddress()
 	if factoryAddress == "" {
 		factoryAddress = "0x0000000000000000000000000000000000000000"
 	}
-	entrypointAddress := h.blockchainClient.EntryPointAddress()
-	chainID := h.blockchainClient.ChainID()
+	entrypointAddress := bc.EntryPointAddress()
+	chainID := bc.ChainID()
 
 	// Insert smart account record
 	var sa SmartAccount
@@ -170,7 +174,7 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 			"factory_address": factoryAddress,
 			"chain_id":        chainID,
 			"deployed":        deployed,
-			"simulated":       h.blockchainClient.IsSimulated(),
+			"simulated":       bc.IsSimulated(),
 		},
 	})
 
@@ -252,18 +256,23 @@ func (h *Handlers) UpgradeToSmartAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Parse optional body for signer_address and chain_id
+	var req DeploySmartAccountRequest
+	decodeJSON(r, &req) // best-effort; body may be empty
+
 	// Use existing agent_address as the signer, or require one in the body
 	signerAddress := ""
 	if agentAddress != nil && *agentAddress != "" {
 		signerAddress = *agentAddress
-	} else {
-		var req DeploySmartAccountRequest
-		if err := decodeJSON(r, &req); err != nil || req.SignerAddress == "" {
-			respondError(w, http.StatusBadRequest, "signer_address is required when agent has no existing address")
-			return
-		}
+	} else if req.SignerAddress != "" {
 		signerAddress = req.SignerAddress
+	} else {
+		respondError(w, http.StatusBadRequest, "signer_address is required when agent has no existing address")
+		return
 	}
+
+	// Resolve blockchain client for requested chain
+	bc := h.clientForChain(req.ChainID)
 
 	// Generate salt and deploy/compute address
 	saltBytes := sha256.Sum256([]byte(agentID.String()))
@@ -274,9 +283,9 @@ func (h *Handlers) UpgradeToSmartAccount(w http.ResponseWriter, r *http.Request)
 	var deployTxHash *string
 	deployed := false
 
-	if !h.blockchainClient.IsSimulated() {
+	if !bc.IsSimulated() {
 		owner := common.HexToAddress(signerAddress)
-		addr, txHash, err := h.blockchainClient.CreateSmartAccount(r.Context(), owner, agentIDBytes32, saltBytes)
+		addr, txHash, err := bc.CreateSmartAccount(r.Context(), owner, agentIDBytes32, saltBytes)
 		if err != nil {
 			h.logger.Error().Err(err).Msg("on-chain smart account deployment failed during upgrade")
 			respondError(w, http.StatusInternalServerError, "on-chain deployment failed: "+err.Error())
@@ -286,7 +295,7 @@ func (h *Handlers) UpgradeToSmartAccount(w http.ResponseWriter, r *http.Request)
 		deployTxHash = &txHash
 		deployed = true
 	} else {
-		addr, err := h.blockchainClient.ComputeSmartAccountAddress(signerAddress, agentID.String(), salt)
+		addr, err := bc.ComputeSmartAccountAddress(signerAddress, agentID.String(), salt)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to compute address")
 			return
@@ -294,12 +303,12 @@ func (h *Handlers) UpgradeToSmartAccount(w http.ResponseWriter, r *http.Request)
 		predictedAddress = addr
 	}
 
-	factoryAddress := h.blockchainClient.FactoryAddress()
+	factoryAddress := bc.FactoryAddress()
 	if factoryAddress == "" {
 		factoryAddress = "0x0000000000000000000000000000000000000000"
 	}
-	entrypointAddress := h.blockchainClient.EntryPointAddress()
-	chainID := h.blockchainClient.ChainID()
+	entrypointAddress := bc.EntryPointAddress()
+	chainID := bc.ChainID()
 
 	// Insert smart account
 	var sa SmartAccount
@@ -334,7 +343,7 @@ func (h *Handlers) UpgradeToSmartAccount(w http.ResponseWriter, r *http.Request)
 			"signer_address":   signerAddress,
 			"previous_address": agentAddress,
 			"deployed":         deployed,
-			"simulated":        h.blockchainClient.IsSimulated(),
+			"simulated":        bc.IsSimulated(),
 		},
 	})
 

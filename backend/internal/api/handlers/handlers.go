@@ -14,26 +14,40 @@ import (
 )
 
 type Handlers struct {
-	db               *pgxpool.Pool
-	logger           zerolog.Logger
-	cfg              *config.Config
-	policyEngine     *policy.Engine
-	auditLogger      *audit.Logger
-	blockchainClient *blockchain.Client
-	onchainSyncer    *policy.OnchainSyncer
+	db            *pgxpool.Pool
+	logger        zerolog.Logger
+	cfg           *config.Config
+	policyEngine  *policy.Engine
+	auditLogger   *audit.Logger
+	chainClients  *blockchain.MultiClient
+	onchainSyncer *policy.OnchainSyncer
 }
 
 func New(db *pgxpool.Pool, logger zerolog.Logger, cfg *config.Config) *Handlers {
-	bc := blockchain.NewClient(cfg, logger)
+	mc := blockchain.NewMultiClient(cfg.Chains, cfg.Blockchain.ChainID, logger)
 	return &Handlers{
-		db:               db,
-		logger:           logger,
-		cfg:              cfg,
-		policyEngine:     policy.NewEngine(db, logger),
-		auditLogger:      audit.NewLogger(db, logger),
-		blockchainClient: bc,
-		onchainSyncer:    policy.NewOnchainSyncer(db, bc, logger),
+		db:            db,
+		logger:        logger,
+		cfg:           cfg,
+		policyEngine:  policy.NewEngine(db, logger),
+		auditLogger:   audit.NewLogger(db, logger),
+		chainClients:  mc,
+		onchainSyncer: policy.NewOnchainSyncer(db, mc, logger),
 	}
+}
+
+// clientForChain returns the blockchain client for the given chain ID.
+// Falls back to the primary chain if chainID is 0.
+func (h *Handlers) clientForChain(chainID int64) *blockchain.Client {
+	if chainID == 0 {
+		return h.chainClients.Primary()
+	}
+	c, err := h.chainClients.ForChain(chainID)
+	if err != nil {
+		h.logger.Warn().Int64("chain_id", chainID).Msg("unknown chain, falling back to primary")
+		return h.chainClients.Primary()
+	}
+	return c
 }
 
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {

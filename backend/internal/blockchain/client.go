@@ -157,6 +157,13 @@ func NewClient(cfg *config.Config, logger zerolog.Logger) *Client {
 	return c
 }
 
+// NewClientFromBlockchainConfig creates a blockchain client from a BlockchainConfig directly.
+// Used by MultiClient to construct per-chain clients.
+func NewClientFromBlockchainConfig(bcfg config.BlockchainConfig, logger zerolog.Logger) *Client {
+	cfg := &config.Config{Blockchain: bcfg}
+	return NewClient(cfg, logger)
+}
+
 // IsSimulated returns true when the client has no real blockchain connection.
 func (c *Client) IsSimulated() bool {
 	return c.simulated

@@ -13,11 +13,20 @@ import { CopyableAddress } from '@/components/ui/copyable-address'
 import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { parseEther, formatEther, createWalletClient, http, encodeFunctionData } from 'viem'
-import { sepolia } from 'viem/chains'
+import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi'
+import { parseEther, formatEther, createWalletClient, http, encodeFunctionData, type Chain } from 'viem'
+import { sepolia, base } from 'viem/chains'
 import { useToast } from '@/hooks/useToast'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
+
+const SUPPORTED_CHAINS: Record<number, Chain> = {
+  [sepolia.id]: sepolia,
+  [base.id]: base,
+}
+
+function getViemChain(chainId: number): Chain {
+  return SUPPORTED_CHAINS[chainId] ?? sepolia
+}
 
 const EXECUTE_ABI = [
   {
@@ -36,6 +45,7 @@ const EXECUTE_ABI = [
 export default function AgentsPage() {
   const queryClient = useQueryClient()
   const { address } = useAccount()
+  const chainId = useChainId()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
   const [upgradeAgentId, setUpgradeAgentId] = useState<string | null>(null)
@@ -62,6 +72,7 @@ export default function AgentsPage() {
   const [showBotKeyInput, setShowBotKeyInput] = useState(false)
   const [botKeyTxHash, setBotKeyTxHash] = useState<string | null>(null)
   const [botKeyTxStatus, setBotKeyTxStatus] = useState<'idle' | 'sending' | 'confirming' | 'confirmed' | 'error'>('idle')
+  const [withdrawChainId, setWithdrawChainId] = useState<number>(sepolia.id)
 
   const { toast } = useToast()
 
@@ -99,8 +110,8 @@ export default function AgentsPage() {
   }, [])
 
   const deployMutation = useMutation({
-    mutationFn: ({ agentId, signerAddress, signerType }: { agentId: string; signerAddress: string; signerType?: string }) =>
-      agents.deploySmartAccount(agentId, { signer_address: signerAddress, signer_type: signerType }),
+    mutationFn: ({ agentId, signerAddress, signerType, chainIdOverride }: { agentId: string; signerAddress: string; signerType?: string; chainIdOverride?: number }) =>
+      agents.deploySmartAccount(agentId, { signer_address: signerAddress, signer_type: signerType, chain_id: chainIdOverride ?? chainId }),
     onSuccess: (sa) => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       if (sa.signer_type === 'generated' && generatedKey) {
@@ -159,7 +170,7 @@ export default function AgentsPage() {
   })
 
   const registerOnchainMutation = useMutation({
-    mutationFn: agents.registerOnchain,
+    mutationFn: (id: string) => agents.registerOnchain(id, chainId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       toast({ title: 'Agent registered on-chain', variant: 'success' })
@@ -247,7 +258,7 @@ export default function AgentsPage() {
       `BOT_ADDRESS=${generatedKey.address}`,
       `SMART_ACCOUNT_ADDRESS=${revealSmartAccountAddress}`,
       `ENTRYPOINT_ADDRESS=0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`,
-      `CHAIN_ID=11155111`,
+      `CHAIN_ID=${chainId}`,
     ].join('\n')
     const blob = new Blob([content], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -283,7 +294,7 @@ export default function AgentsPage() {
     })
   }
 
-  const handleOpenWithdraw = (agent: Agent) => {
+  const handleOpenWithdraw = async (agent: Agent) => {
     setWithdrawAgent(agent)
     setWithdrawAmount('')
     setBotKeyInput('')
@@ -293,6 +304,14 @@ export default function AgentsPage() {
     resetWithdraw()
     setWithdrawOpen(true)
     setTimeout(() => refetchBalance(), 100)
+
+    // Fetch the smart account's chain_id for correct chain routing
+    try {
+      const sa = await agents.getSmartAccount(agent.id)
+      setWithdrawChainId(sa.chain_id || sepolia.id)
+    } catch {
+      setWithdrawChainId(chainId || sepolia.id)
+    }
   }
 
   const handleWithdraw = () => {
@@ -333,7 +352,7 @@ export default function AgentsPage() {
 
       const walletClient = createWalletClient({
         account,
-        chain: sepolia,
+        chain: getViemChain(withdrawChainId),
         transport: http(),
       })
 
@@ -355,7 +374,7 @@ export default function AgentsPage() {
       // Wait for confirmation by polling
       const { createPublicClient } = await import('viem')
       const publicClient = createPublicClient({
-        chain: sepolia,
+        chain: getViemChain(withdrawChainId),
         transport: http(),
       })
 
@@ -393,6 +412,7 @@ export default function AgentsPage() {
     setShowBotKeyInput(false)
     setBotKeyTxHash(null)
     setBotKeyTxStatus('idle')
+    setWithdrawChainId(sepolia.id)
     resetWithdraw()
   }
 
@@ -1059,8 +1079,8 @@ export default function AgentsPage() {
                             <CopyableAddress address="0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789" />
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Chain ID: </span>
-                            <span className="font-mono">11155111 (Sepolia)</span>
+                            <span className="text-muted-foreground">Chain: </span>
+                            <span className="font-mono">{chainId} ({getViemChain(chainId).name})</span>
                           </div>
                           <p className="text-muted-foreground italic">
                             Give these details to your bot along with the private key.

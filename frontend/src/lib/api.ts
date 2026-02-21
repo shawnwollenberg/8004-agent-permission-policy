@@ -94,9 +94,12 @@ export const agents = {
   update: (id: string, data: Partial<Agent>) =>
     fetchApi<Agent>(`/api/v1/agents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => fetchApi<void>(`/api/v1/agents/${id}`, { method: 'DELETE' }),
-  registerOnchain: (id: string) =>
-    fetchApi<Agent>(`/api/v1/agents/${id}/register-onchain`, { method: 'POST' }),
-  deploySmartAccount: (id: string, data: { signer_address: string; signer_type?: string }) =>
+  registerOnchain: (id: string, chainId?: number) =>
+    fetchApi<Agent>(`/api/v1/agents/${id}/register-onchain`, {
+      method: 'POST',
+      body: chainId ? JSON.stringify({ chain_id: chainId }) : undefined,
+    }),
+  deploySmartAccount: (id: string, data: { signer_address: string; signer_type?: string; chain_id?: number }) =>
     fetchApi<SmartAccount>(`/api/v1/agents/${id}/deploy-smart-account`, { method: 'POST', body: JSON.stringify(data) }),
   getSmartAccount: (id: string) =>
     fetchApi<SmartAccount>(`/api/v1/agents/${id}/smart-account`),

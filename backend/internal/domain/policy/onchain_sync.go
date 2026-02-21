@@ -18,19 +18,19 @@ import (
 // when permissions are created or modified for smart account agents.
 type OnchainSyncer struct {
 	db     *pgxpool.Pool
-	bc     *blockchain.Client
+	mc     *blockchain.MultiClient
 	logger zerolog.Logger
 }
 
-func NewOnchainSyncer(db *pgxpool.Pool, bc *blockchain.Client, logger zerolog.Logger) *OnchainSyncer {
-	return &OnchainSyncer{db: db, bc: bc, logger: logger}
+func NewOnchainSyncer(db *pgxpool.Pool, mc *blockchain.MultiClient, logger zerolog.Logger) *OnchainSyncer {
+	return &OnchainSyncer{db: db, mc: mc, logger: logger}
 }
 
 // SyncConstraints converts a policy Definition to contract-compatible types and
 // syncs them to the on-chain PermissionEnforcer for a given permission.
 // Only runs for smart_account agents. Advisory (EOA) agents skip sync.
 func (s *OnchainSyncer) SyncConstraints(ctx context.Context, permissionID uuid.UUID, agentID uuid.UUID) error {
-	// Look up agent's wallet type
+	// Look up agent's wallet type and smart account chain_id
 	var walletType string
 	err := s.db.QueryRow(ctx,
 		`SELECT wallet_type FROM agents WHERE id = $1`, agentID,
@@ -46,6 +46,27 @@ func (s *OnchainSyncer) SyncConstraints(ctx context.Context, permissionID uuid.U
 			Str("wallet_type", walletType).
 			Msg("skipping constraint sync for non-smart-account agent")
 		return nil
+	}
+
+	// Look up the smart account's chain_id to use the correct blockchain client
+	var saChainID int64
+	err = s.db.QueryRow(ctx,
+		`SELECT chain_id FROM smart_accounts WHERE agent_id = $1`, agentID,
+	).Scan(&saChainID)
+	if err != nil {
+		s.logger.Warn().Err(err).Str("agent_id", agentID.String()).Msg("failed to get smart account chain_id, using primary")
+		saChainID = 0
+	}
+
+	var bc *blockchain.Client
+	if saChainID != 0 {
+		bc, err = s.mc.ForChain(saChainID)
+		if err != nil {
+			s.logger.Warn().Int64("chain_id", saChainID).Msg("unknown chain for smart account, using primary")
+			bc = s.mc.Primary()
+		}
+	} else {
+		bc = s.mc.Primary()
 	}
 
 	// Get the policy definition for this permission
@@ -74,11 +95,12 @@ func (s *OnchainSyncer) SyncConstraints(ctx context.Context, permissionID uuid.U
 	s.logger.Info().
 		Str("permission_id", permissionID.String()).
 		Str("agent_id", agentID.String()).
+		Int64("chain_id", bc.ChainID()).
 		Interface("sync_data", syncData).
 		Msg("syncing constraints to on-chain enforcer")
 
 	// Push constraints on-chain
-	txHash, err := s.bc.SetConstraints(
+	txHash, err := bc.SetConstraints(
 		ctx,
 		permIDBytes,
 		syncData.MaxValuePerTx,

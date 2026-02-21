@@ -297,7 +297,7 @@ func (h *Handlers) ActivatePolicy(w http.ResponseWriter, r *http.Request) {
 
 	// Register the policy on-chain via PolicyRegistry.createPolicy(contentHash)
 	contentHash := blockchain.PolicyContentHash(defBytes)
-	onchainPolicyID, txHash, err := h.blockchainClient.CreatePolicy(r.Context(), contentHash)
+	onchainPolicyID, txHash, err := h.chainClients.Primary().CreatePolicy(r.Context(), contentHash)
 	if err != nil {
 		h.logger.Error().Err(err).Str("policy_id", policyID.String()).Msg("on-chain policy creation failed")
 		respondError(w, http.StatusInternalServerError, "on-chain policy creation failed: "+err.Error())
@@ -328,7 +328,7 @@ func (h *Handlers) ActivatePolicy(w http.ResponseWriter, r *http.Request) {
 		WalletID:  userID,
 		PolicyID:  &policyID,
 		EventType: "policy.activated",
-		Details:   map[string]interface{}{"onchain_hash": onchainPolicyID, "tx_hash": txHash, "simulated": h.blockchainClient.IsSimulated()},
+		Details:   map[string]interface{}{"onchain_hash": onchainPolicyID, "tx_hash": txHash, "simulated": h.chainClients.Primary().IsSimulated()},
 	})
 
 	respondJSON(w, http.StatusOK, p)
@@ -355,7 +355,7 @@ func (h *Handlers) RevokePolicy(w http.ResponseWriter, r *http.Request) {
 	if onchainHash != nil && *onchainHash != "" {
 		policyIDBytes, decErr := blockchain.HexToBytes32(*onchainHash)
 		if decErr == nil {
-			txHash, bcErr := h.blockchainClient.DeactivatePolicy(r.Context(), policyIDBytes)
+			txHash, bcErr := h.chainClients.Primary().DeactivatePolicy(r.Context(), policyIDBytes)
 			if bcErr != nil {
 				h.logger.Error().Err(bcErr).Str("policy_id", policyID.String()).Msg("on-chain policy deactivation failed (continuing with DB revoke)")
 			} else {
@@ -412,7 +412,7 @@ func (h *Handlers) ReactivatePolicy(w http.ResponseWriter, r *http.Request) {
 	if onchainHash != nil && *onchainHash != "" {
 		policyIDBytes, decErr := blockchain.HexToBytes32(*onchainHash)
 		if decErr == nil {
-			txHash, bcErr := h.blockchainClient.ReactivatePolicy(r.Context(), policyIDBytes)
+			txHash, bcErr := h.chainClients.Primary().ReactivatePolicy(r.Context(), policyIDBytes)
 			if bcErr != nil {
 				h.logger.Error().Err(bcErr).Str("policy_id", policyID.String()).Msg("on-chain policy reactivation failed")
 				respondError(w, http.StatusInternalServerError, "on-chain policy reactivation failed: "+bcErr.Error())
@@ -441,7 +441,7 @@ func (h *Handlers) ReactivatePolicy(w http.ResponseWriter, r *http.Request) {
 		WalletID:  userID,
 		PolicyID:  &policyID,
 		EventType: "policy.reactivated",
-		Details:   map[string]interface{}{"simulated": h.blockchainClient.IsSimulated()},
+		Details:   map[string]interface{}{"simulated": h.chainClients.Primary().IsSimulated()},
 	})
 
 	respondJSON(w, http.StatusOK, p)

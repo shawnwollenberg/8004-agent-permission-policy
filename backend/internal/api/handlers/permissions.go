@@ -194,7 +194,7 @@ func (h *Handlers) DeletePermission(w http.ResponseWriter, r *http.Request) {
 	if onchainTokenID != nil && *onchainTokenID != "" {
 		permIDBytes, decErr := blockchain.HexToBytes32(*onchainTokenID)
 		if decErr == nil {
-			txHash, bcErr := h.blockchainClient.RevokePermission(r.Context(), permIDBytes)
+			txHash, bcErr := h.chainClients.Primary().RevokePermission(r.Context(), permIDBytes)
 			if bcErr != nil {
 				h.logger.Error().Err(bcErr).Str("permission_id", permID.String()).Msg("on-chain permission revocation failed (continuing with DB revoke)")
 			} else {
@@ -317,7 +317,7 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mint on-chain (or simulate)
-	onchainTokenID, txHash, err := h.blockchainClient.GrantPermission(r.Context(), policyHashBytes, agentIDBytes, validFromBig, validUntilBig)
+	onchainTokenID, txHash, err := h.chainClients.Primary().GrantPermission(r.Context(), policyHashBytes, agentIDBytes, validFromBig, validUntilBig)
 	if err != nil {
 		h.logger.Error().Err(err).Str("permission_id", permID.String()).Msg("on-chain minting failed")
 		respondError(w, http.StatusInternalServerError, "on-chain minting failed: "+err.Error())
@@ -328,7 +328,7 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 		Str("permission_id", permID.String()).
 		Str("onchain_token_id", onchainTokenID).
 		Str("tx_hash", txHash).
-		Bool("simulated", h.blockchainClient.IsSimulated()).
+		Bool("simulated", h.chainClients.Primary().IsSimulated()).
 		Msg("permission minted on-chain")
 
 	// Update DB with on-chain token ID
@@ -352,7 +352,7 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 		PolicyID:     &perm.PolicyID,
 		PermissionID: &permID,
 		EventType:    "permission.minted",
-		Details:      map[string]interface{}{"token_id": onchainTokenID, "tx_hash": txHash, "simulated": h.blockchainClient.IsSimulated()},
+		Details:      map[string]interface{}{"token_id": onchainTokenID, "tx_hash": txHash, "simulated": h.chainClients.Primary().IsSimulated()},
 	})
 
 	// Best-effort constraint sync for smart account agents (Phase 4)

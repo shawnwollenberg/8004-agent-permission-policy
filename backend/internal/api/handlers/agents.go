@@ -241,6 +241,10 @@ func (h *Handlers) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type RegisterOnchainRequest struct {
+	ChainID int64 `json:"chain_id,omitempty"`
+}
+
 func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	agentIDStr := r.PathValue("id")
@@ -250,6 +254,12 @@ func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "invalid agent id")
 		return
 	}
+
+	// Parse optional chain_id from body
+	var req RegisterOnchainRequest
+	decodeJSON(r, &req) // best-effort; body may be empty
+
+	bc := h.clientForChain(req.ChainID)
 
 	// Check if already registered on-chain
 	var existingRegistryID *string
@@ -264,7 +274,7 @@ func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) 
 
 	// Register agent on-chain via IdentityRegistry (or simulate)
 	agentIDBytes := blockchain.UUIDToBytes32(agentID.String())
-	registryID, err := h.blockchainClient.RegisterAgent(r.Context(), agentIDBytes, agentID.String())
+	registryID, err := bc.RegisterAgent(r.Context(), agentIDBytes, agentID.String())
 	if err != nil {
 		// Handle AgentAlreadyExists revert — treat as success
 		if strings.Contains(err.Error(), "AgentAlreadyExists") {
@@ -296,7 +306,7 @@ func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) 
 		WalletID:  userID,
 		AgentID:   &agentID,
 		EventType: "agent.registered_onchain",
-		Details:   map[string]interface{}{"registry_id": registryID, "simulated": h.blockchainClient.IsSimulated()},
+		Details:   map[string]interface{}{"registry_id": registryID, "simulated": bc.IsSimulated()},
 	})
 
 	respondJSON(w, http.StatusOK, agent)
@@ -311,7 +321,7 @@ func (h *Handlers) SyncOnchainAgents(w http.ResponseWriter, r *http.Request) {
 	}
 	walletAddress := middleware.GetWallet(ctx)
 
-	onchainIDs, err := h.blockchainClient.GetOwnerAgents(ctx, walletAddress)
+	onchainIDs, err := h.chainClients.Primary().GetOwnerAgents(ctx, walletAddress)
 	if err != nil {
 		h.logger.Warn().Err(err).Msg("failed to fetch on-chain agents, returning empty")
 		respondJSON(w, http.StatusOK, []Agent{})
@@ -357,7 +367,7 @@ func (h *Handlers) SyncOnchainAgents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		_, metadata, active, registeredAt, err := h.blockchainClient.GetAgentOnchain(ctx, agentID)
+		_, metadata, active, registeredAt, err := h.chainClients.Primary().GetAgentOnchain(ctx, agentID)
 		if err != nil {
 			h.logger.Warn().Err(err).Str("agent_id", registryHex).Msg("failed to read on-chain agent, skipping")
 			continue
