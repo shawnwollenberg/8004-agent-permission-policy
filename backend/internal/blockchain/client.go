@@ -509,6 +509,55 @@ func (c *Client) GetEthValue(ctx context.Context, token common.Address, amount *
 	return ethValue, nil
 }
 
+// GetOwnerAgents returns all agent IDs registered on-chain for the given owner address.
+func (c *Client) GetOwnerAgents(ctx context.Context, ownerAddress string) ([][32]byte, error) {
+	if c.simulated || c.identityRegistry == nil {
+		return nil, nil
+	}
+
+	var result []interface{}
+	err := c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &result, "getOwnerAgents", common.HexToAddress(ownerAddress))
+	if err != nil {
+		return nil, fmt.Errorf("identityRegistry.getOwnerAgents failed: %w", err)
+	}
+
+	if len(result) == 0 {
+		return nil, nil
+	}
+
+	ids, ok := result[0].([][32]byte)
+	if !ok {
+		return nil, fmt.Errorf("identityRegistry.getOwnerAgents returned unexpected type")
+	}
+
+	return ids, nil
+}
+
+// GetAgentOnchain reads an agent's details from the IdentityRegistry contract.
+func (c *Client) GetAgentOnchain(ctx context.Context, agentID [32]byte) (owner common.Address, metadata string, active bool, registeredAt *big.Int, err error) {
+	if c.simulated || c.identityRegistry == nil {
+		return common.Address{}, "", false, big.NewInt(0), nil
+	}
+
+	var result []interface{}
+	err = c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &result, "getAgent", agentID)
+	if err != nil {
+		return common.Address{}, "", false, nil, fmt.Errorf("identityRegistry.getAgent failed: %w", err)
+	}
+
+	if len(result) < 5 {
+		return common.Address{}, "", false, nil, fmt.Errorf("identityRegistry.getAgent returned insufficient fields")
+	}
+
+	owner, _ = result[0].(common.Address)
+	// result[1] is agentId (bytes32), skip
+	metadata, _ = result[2].(string)
+	registeredAt, _ = result[3].(*big.Int)
+	active, _ = result[4].(bool)
+
+	return owner, metadata, active, registeredAt, nil
+}
+
 // WaitForTx waits for a transaction to be mined and returns the receipt.
 func (c *Client) WaitForTx(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
 	receipt, err := bind.WaitMined(ctx, c.ethClient, tx)

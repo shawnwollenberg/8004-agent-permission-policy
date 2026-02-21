@@ -87,6 +87,7 @@ export interface SmartAccount {
 
 export const agents = {
   list: () => fetchApi<Agent[]>('/api/v1/agents'),
+  sync: () => fetchApi<Agent[]>('/api/v1/agents/sync', { method: 'POST' }),
   get: (id: string) => fetchApi<Agent>(`/api/v1/agents/${id}`),
   create: (data: { name: string; description?: string; agent_address?: string; wallet_type?: string }) =>
     fetchApi<Agent>('/api/v1/agents', { method: 'POST', body: JSON.stringify(data) }),

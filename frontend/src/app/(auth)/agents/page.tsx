@@ -82,6 +82,22 @@ export default function AgentsPage() {
     queryFn: agents.list,
   })
 
+  // Fire-and-forget: sync on-chain agents on mount
+  const syncMutation = useMutation({
+    mutationFn: agents.sync,
+    onSuccess: (synced) => {
+      if (synced?.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ['agents'] })
+        toast({ title: `Synced ${synced.length} on-chain agent${synced.length > 1 ? 's' : ''}`, variant: 'success' })
+      }
+    },
+  })
+
+  useEffect(() => {
+    syncMutation.mutate()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const deployMutation = useMutation({
     mutationFn: ({ agentId, signerAddress, signerType }: { agentId: string; signerAddress: string; signerType?: string }) =>
       agents.deploySmartAccount(agentId, { signer_address: signerAddress, signer_type: signerType }),

@@ -78,6 +78,7 @@ func (s *Server) setupRoutes() {
 			r.Route("/agents", func(r chi.Router) {
 				r.Post("/", s.handlers.CreateAgent)
 				r.Get("/", s.handlers.ListAgents)
+				r.Post("/sync", s.handlers.SyncOnchainAgents)
 				r.Get("/{id}", s.handlers.GetAgent)
 				r.Patch("/{id}", s.handlers.UpdateAgent)
 				r.Delete("/{id}", s.handlers.DeleteAgent)

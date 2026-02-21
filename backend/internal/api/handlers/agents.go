@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -298,6 +300,123 @@ func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) 
 	})
 
 	respondJSON(w, http.StatusOK, agent)
+}
+
+func (h *Handlers) SyncOnchainAgents(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	walletID := middleware.GetUserID(ctx)
+	if walletID == uuid.Nil {
+		respondError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	walletAddress := middleware.GetWallet(ctx)
+
+	onchainIDs, err := h.blockchainClient.GetOwnerAgents(ctx, walletAddress)
+	if err != nil {
+		h.logger.Warn().Err(err).Msg("failed to fetch on-chain agents, returning empty")
+		respondJSON(w, http.StatusOK, []Agent{})
+		return
+	}
+	if len(onchainIDs) == 0 {
+		respondJSON(w, http.StatusOK, []Agent{})
+		return
+	}
+
+	// Build set of known on-chain registry IDs from DB
+	rows, err := h.db.Query(ctx,
+		`SELECT id, onchain_registry_id FROM agents WHERE wallet_id = $1 AND status != 'deleted'`,
+		walletID,
+	)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to query existing agents for sync")
+		respondJSON(w, http.StatusOK, []Agent{})
+		return
+	}
+	defer rows.Close()
+
+	knownIDs := make(map[string]bool)
+	for rows.Next() {
+		var dbID uuid.UUID
+		var registryID *string
+		if err := rows.Scan(&dbID, &registryID); err != nil {
+			continue
+		}
+		// Index by on-chain registry ID if present
+		if registryID != nil && *registryID != "" {
+			knownIDs[strings.ToLower(*registryID)] = true
+		}
+		// Also index by UUID->bytes32 hex so we match agents created from dashboard
+		b32 := blockchain.UUIDToBytes32(dbID.String())
+		knownIDs[strings.ToLower("0x"+hex.EncodeToString(b32[:]))] = true
+	}
+
+	var imported []Agent
+	for _, agentID := range onchainIDs {
+		registryHex := "0x" + hex.EncodeToString(agentID[:])
+		if knownIDs[strings.ToLower(registryHex)] {
+			continue
+		}
+
+		_, metadata, active, registeredAt, err := h.blockchainClient.GetAgentOnchain(ctx, agentID)
+		if err != nil {
+			h.logger.Warn().Err(err).Str("agent_id", registryHex).Msg("failed to read on-chain agent, skipping")
+			continue
+		}
+
+		// Parse metadata as JSON for name/description
+		name := "On-chain Agent " + registryHex[:10]
+		description := ""
+		var meta struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}
+		if json.Unmarshal([]byte(metadata), &meta) == nil && meta.Name != "" {
+			name = meta.Name
+			description = meta.Description
+		} else if metadata != "" {
+			name = metadata
+		}
+
+		status := "active"
+		if !active {
+			status = "inactive"
+		}
+
+		var regAt *time.Time
+		if registeredAt != nil && registeredAt.Int64() > 0 {
+			t := time.Unix(registeredAt.Int64(), 0)
+			regAt = &t
+		}
+
+		var agent Agent
+		err = h.db.QueryRow(ctx,
+			`INSERT INTO agents (wallet_id, name, description, status, wallet_type, enforcement_level, onchain_registry_id, onchain_registered_at)
+			 VALUES ($1, $2, $3, $4, 'eoa', 'advisory', $5, $6)
+			 RETURNING id, wallet_id, name, description, agent_address, onchain_registry_id, status, wallet_type, enforcement_level, created_at, updated_at, onchain_registered_at`,
+			walletID, name, description, status, registryHex, regAt,
+		).Scan(&agent.ID, &agent.WalletID, &agent.Name, &agent.Description, &agent.AgentAddress, &agent.OnchainRegistryID,
+			&agent.Status, &agent.WalletType, &agent.EnforcementLevel, &agent.CreatedAt, &agent.UpdatedAt, &agent.OnchainRegisteredAt)
+		if err != nil {
+			h.logger.Error().Err(err).Str("registry_id", registryHex).Msg("failed to insert synced agent")
+			continue
+		}
+
+		imported = append(imported, agent)
+	}
+
+	if len(imported) > 0 {
+		h.auditLogger.Log(ctx, audit.Event{
+			WalletID:  walletID,
+			EventType: "agent.synced_from_chain",
+			Details:   map[string]interface{}{"count": len(imported)},
+		})
+	}
+
+	if imported == nil {
+		imported = []Agent{}
+	}
+
+	respondJSON(w, http.StatusOK, imported)
 }
 
 func nilIfEmpty(s string) *string {
