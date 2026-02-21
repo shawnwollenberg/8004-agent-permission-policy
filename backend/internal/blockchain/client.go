@@ -32,6 +32,7 @@ type Client struct {
 	policyRegistry   *bindings.PolicyRegistry
 	enforcer         *bindings.PermissionEnforcer
 	priceOracle      *bindings.PriceOracle
+	feeManager       *bindings.GuardrailFeeManager
 	factory          *bindings.AgentAccountFactory
 	simulated        bool
 
@@ -124,6 +125,15 @@ func NewClient(cfg *config.Config, logger zerolog.Logger) *Client {
 			logger.Error().Err(err).Msg("blockchain client: failed to bind PriceOracle")
 		} else {
 			c.priceOracle = po
+		}
+	}
+
+	if cfg.Blockchain.FeeManagerAddress != "" {
+		fm, err := bindings.NewGuardrailFeeManager(common.HexToAddress(cfg.Blockchain.FeeManagerAddress), ethClient)
+		if err != nil {
+			logger.Error().Err(err).Msg("blockchain client: failed to bind GuardrailFeeManager")
+		} else {
+			c.feeManager = fm
 		}
 	}
 
@@ -224,6 +234,31 @@ func (c *Client) RegisterAgent(ctx context.Context, agentID [32]byte, metadata s
 	return receipt.TxHash.Hex(), nil
 }
 
+// GetCreationFee returns the current smart account creation fee in wei.
+// In simulated mode, returns 0.
+func (c *Client) GetCreationFee(ctx context.Context) (*big.Int, error) {
+	if c.simulated || c.feeManager == nil {
+		return big.NewInt(0), nil
+	}
+
+	var result []interface{}
+	err := c.feeManager.Call(&bind.CallOpts{Context: ctx}, &result, "getCreationFeeWei")
+	if err != nil {
+		return nil, fmt.Errorf("feeManager.getCreationFeeWei failed: %w", err)
+	}
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("feeManager.getCreationFeeWei returned no result")
+	}
+
+	fee, ok := result[0].(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("feeManager.getCreationFeeWei returned unexpected type")
+	}
+
+	return fee, nil
+}
+
 // CreateSmartAccount deploys a new ERC-4337 smart account via the factory.
 // Returns the deployed account address and transaction hash.
 func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, agentID [32]byte, salt [32]byte) (string, string, error) {
@@ -235,7 +270,14 @@ func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, a
 		return addr, "0x" + hex.EncodeToString(txHash[:]), nil
 	}
 
-	tx, err := c.transact(ctx, c.factory.BoundContract, "createAccount", owner, agentID, salt)
+	// Get creation fee
+	creationFee, err := c.GetCreationFee(ctx)
+	if err != nil {
+		c.logger.Warn().Err(err).Msg("failed to get creation fee, proceeding with zero value")
+		creationFee = big.NewInt(0)
+	}
+
+	tx, err := c.transactWithValue(ctx, c.factory.BoundContract, "createAccount", creationFee, owner, agentID, salt)
 	if err != nil {
 		return "", "", fmt.Errorf("createAccount tx failed: %w", err)
 	}
@@ -499,6 +541,26 @@ func (c *Client) transact(ctx context.Context, contract *bind.BoundContract, met
 		Str("method", method).
 		Str("tx_hash", tx.Hash().Hex()).
 		Msg("transaction sent")
+
+	return tx, nil
+}
+
+// transactWithValue creates and sends a transaction with ETH value attached.
+func (c *Client) transactWithValue(ctx context.Context, contract *bind.BoundContract, method string, value *big.Int, args ...interface{}) (*types.Transaction, error) {
+	opts := *c.signer
+	opts.Context = ctx
+	opts.Value = value
+
+	tx, err := contract.Transact(&opts, method, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	c.logger.Info().
+		Str("method", method).
+		Str("tx_hash", tx.Hash().Hex()).
+		Str("value", value.String()).
+		Msg("transaction sent with value")
 
 	return tx, nil
 }

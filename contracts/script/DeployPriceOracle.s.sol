@@ -5,9 +5,12 @@ import "forge-std/Script.sol";
 import "../src/PermissionEnforcer.sol";
 import "../src/AgentAccountFactory.sol";
 import "../src/PriceOracle.sol";
+import "../src/GuardrailFeeManager.sol";
 
 /// @notice Deploys PriceOracle, new PermissionEnforcer (with oracle support),
-///         and new AgentAccountFactory. Reuses existing IdentityRegistry and PolicyRegistry.
+///         GuardrailFeeManager, and new AgentAccountFactory.
+///         Reuses existing IdentityRegistry and PolicyRegistry.
+///         Superseded by DeployFeeUpgrade.s.sol for new deployments.
 contract DeployPriceOracleScript is Script {
     // ERC-4337 EntryPoint v0.6 canonical address
     address constant ENTRY_POINT = 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789;
@@ -27,6 +30,7 @@ contract DeployPriceOracleScript is Script {
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address feeCollector = vm.envAddress("FEE_COLLECTOR");
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -52,10 +56,21 @@ contract DeployPriceOracleScript is Script {
         enforcer.setPriceOracle(address(oracle));
         console.log("PriceOracle set on PermissionEnforcer");
 
-        // 5. Deploy new AgentAccountFactory with new enforcer
+        // 5. Deploy GuardrailFeeManager ($10 creation, 10bps transfer, $100 cap)
+        GuardrailFeeManager feeManager = new GuardrailFeeManager(
+            address(oracle),
+            feeCollector,
+            10_000000,
+            10,
+            100_000000
+        );
+        console.log("GuardrailFeeManager deployed at:", address(feeManager));
+
+        // 6. Deploy new AgentAccountFactory with new enforcer + feeManager
         AgentAccountFactory factory = new AgentAccountFactory(
             address(enforcer),
-            ENTRY_POINT
+            ENTRY_POINT,
+            address(feeManager)
         );
         console.log("AgentAccountFactory deployed at:", address(factory));
 
@@ -66,6 +81,7 @@ contract DeployPriceOracleScript is Script {
         console.log("PolicyRegistry (existing):", POLICY_REGISTRY);
         console.log("PermissionEnforcer (NEW):", address(enforcer));
         console.log("PriceOracle (NEW):", address(oracle));
+        console.log("GuardrailFeeManager (NEW):", address(feeManager));
         console.log("AgentAccountFactory (NEW):", address(factory));
         console.log("EntryPoint:", ENTRY_POINT);
     }

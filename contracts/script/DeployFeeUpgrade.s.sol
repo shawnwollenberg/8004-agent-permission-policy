@@ -7,10 +7,9 @@ import "../src/AgentAccountFactory.sol";
 import "../src/PriceOracle.sol";
 import "../src/GuardrailFeeManager.sol";
 
-/// @notice Deploys updated PermissionEnforcer, FeeManager, and new AgentAccountFactory.
-///         Reuses existing IdentityRegistry and PolicyRegistry addresses.
-///         Superseded by DeployFeeUpgrade.s.sol for new deployments.
-contract DeployUpgradeScript is Script {
+/// @notice Deploys GuardrailFeeManager, new PermissionEnforcer, and new AgentAccountFactory.
+///         Reuses existing IdentityRegistry, PolicyRegistry, and PriceOracle.
+contract DeployFeeUpgradeScript is Script {
     // ERC-4337 EntryPoint v0.6 canonical address
     address constant ENTRY_POINT = 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789;
 
@@ -25,26 +24,29 @@ contract DeployUpgradeScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy updated PermissionEnforcer (with protocol/chain constraint support)
+        // 1. Deploy new PermissionEnforcer (reuse existing registries)
         PermissionEnforcer enforcer = new PermissionEnforcer(
             POLICY_REGISTRY,
             IDENTITY_REGISTRY
         );
         console.log("PermissionEnforcer deployed at:", address(enforcer));
 
+        // 2. Wire existing PriceOracle into the new enforcer
         enforcer.setPriceOracle(PRICE_ORACLE);
+        console.log("PriceOracle wired into PermissionEnforcer");
 
-        // Deploy GuardrailFeeManager ($10 creation, 10bps transfer, $100 cap)
+        // 3. Deploy GuardrailFeeManager
+        //    $10 creation fee, 10 bps (0.10%) transfer fee, $100 cap
         GuardrailFeeManager feeManager = new GuardrailFeeManager(
             PRICE_ORACLE,
             feeCollector,
-            10_000000,
-            10,
-            100_000000
+            10_000000,   // $10 (6 decimals)
+            10,          // 10 bps = 0.10%
+            100_000000   // $100 cap (6 decimals)
         );
         console.log("GuardrailFeeManager deployed at:", address(feeManager));
 
-        // Deploy new AgentAccountFactory
+        // 4. Deploy new AgentAccountFactory (with enforcer + entryPoint + feeManager)
         AgentAccountFactory factory = new AgentAccountFactory(
             address(enforcer),
             ENTRY_POINT,
@@ -54,12 +56,14 @@ contract DeployUpgradeScript is Script {
 
         vm.stopBroadcast();
 
-        console.log("\n--- Upgrade Deployment Summary ---");
+        console.log("\n--- Fee Upgrade Deployment Summary ---");
         console.log("IdentityRegistry (existing):", IDENTITY_REGISTRY);
         console.log("PolicyRegistry (existing):", POLICY_REGISTRY);
+        console.log("PriceOracle (existing):", PRICE_ORACLE);
         console.log("PermissionEnforcer (NEW):", address(enforcer));
         console.log("GuardrailFeeManager (NEW):", address(feeManager));
         console.log("AgentAccountFactory (NEW):", address(factory));
         console.log("EntryPoint:", ENTRY_POINT);
+        console.log("Fee Collector:", feeCollector);
     }
 }

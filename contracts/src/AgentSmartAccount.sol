@@ -3,11 +3,13 @@ pragma solidity ^0.8.24;
 
 import "./interfaces/IERC4337.sol";
 import "./PermissionEnforcer.sol";
+import "./GuardrailFeeManager.sol";
 
 /**
  * @title AgentSmartAccount
  * @notice ERC-4337 compatible smart account that enforces agent permissions on-chain
- * @dev Calls PermissionEnforcer.validateAction during validateUserOp to reject policy violations
+ * @dev Calls PermissionEnforcer.validateAction during validateUserOp to reject policy violations.
+ *      Deducts transfer fees on outbound ETH transfers via GuardrailFeeManager.
  */
 contract AgentSmartAccount is IAccount {
     uint256 internal constant SIG_VALIDATION_FAILED = 1;
@@ -16,24 +18,27 @@ contract AgentSmartAccount is IAccount {
     bytes32 public immutable agentId;
     PermissionEnforcer public immutable enforcer;
     address public immutable entryPoint;
+    GuardrailFeeManager public immutable feeManager;
 
-    event Executed(address indexed target, uint256 value, bytes data);
-    event ExecutedBatch(uint256 count);
+    event Executed(address indexed target, uint256 value, uint256 fee, bytes data);
+    event ExecutedBatch(uint256 count, uint256 totalFees);
     event EnforcementResult(bytes32 indexed agentId, bytes32 actionHash, bool allowed);
 
     error NotAuthorized();
     error ExecutionFailed();
+    error FeeTransferFailed();
 
     modifier onlyOwnerOrEntryPoint() {
         if (msg.sender != owner && msg.sender != entryPoint) revert NotAuthorized();
         _;
     }
 
-    constructor(address _owner, bytes32 _agentId, address _enforcer, address _entryPoint) {
+    constructor(address _owner, bytes32 _agentId, address _enforcer, address _entryPoint, address _feeManager) {
         owner = _owner;
         agentId = _agentId;
         enforcer = PermissionEnforcer(_enforcer);
         entryPoint = _entryPoint;
+        feeManager = GuardrailFeeManager(_feeManager);
     }
 
     /**
@@ -91,18 +96,31 @@ contract AgentSmartAccount is IAccount {
 
     /**
      * @notice Execute a call from this account
+     * @dev If value > 0, deducts a transfer fee and sends it to the fee collector
      * @param target The target contract address
      * @param value ETH value to send
      * @param data Calldata to send
      */
     function execute(address target, uint256 value, bytes calldata data) external onlyOwnerOrEntryPoint {
-        (bool success, ) = target.call{value: value}(data);
+        uint256 fee = 0;
+        if (value > 0) {
+            fee = feeManager.calculateTransferFee(value);
+            if (fee > 0) {
+                address collector = feeManager.feeCollector();
+                (bool feeSent, ) = payable(collector).call{value: fee}("");
+                if (!feeSent) revert FeeTransferFailed();
+            }
+        }
+
+        uint256 sendValue = value - fee;
+        (bool success, ) = target.call{value: sendValue}(data);
         if (!success) revert ExecutionFailed();
-        emit Executed(target, value, data);
+        emit Executed(target, value, fee, data);
     }
 
     /**
      * @notice Execute a batch of calls
+     * @dev Each sub-call with value > 0 is charged a transfer fee
      * @param targets Array of target addresses
      * @param values Array of ETH values
      * @param datas Array of calldatas
@@ -113,11 +131,25 @@ contract AgentSmartAccount is IAccount {
         bytes[] calldata datas
     ) external onlyOwnerOrEntryPoint {
         require(targets.length == values.length && values.length == datas.length, "length mismatch");
+
+        uint256 totalFees = 0;
         for (uint256 i = 0; i < targets.length; i++) {
-            (bool success, ) = targets[i].call{value: values[i]}(datas[i]);
+            uint256 fee = 0;
+            if (values[i] > 0) {
+                fee = feeManager.calculateTransferFee(values[i]);
+                if (fee > 0) {
+                    address collector = feeManager.feeCollector();
+                    (bool feeSent, ) = payable(collector).call{value: fee}("");
+                    if (!feeSent) revert FeeTransferFailed();
+                    totalFees += fee;
+                }
+            }
+
+            uint256 sendValue = values[i] - fee;
+            (bool success, ) = targets[i].call{value: sendValue}(datas[i]);
             if (!success) revert ExecutionFailed();
         }
-        emit ExecutedBatch(targets.length);
+        emit ExecutedBatch(targets.length, totalFees);
     }
 
     /**

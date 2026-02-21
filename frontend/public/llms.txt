@@ -36,6 +36,129 @@ Permissions link an agent to a policy. When you grant a permission, the agent ca
 - Advisory (EOA): Off-chain validation API with monitoring and alerts. Cannot prevent on-chain execution.
 - Enforced (Smart Account): On-chain + off-chain enforcement. Unauthorized transactions revert automatically.
 
+## Fee Structure
+
+Guardrail operates as protocol-level infrastructure with enforced on-chain fees via the GuardrailFeeManager contract.
+
+### Account Creation Fee
+- **Amount:** $10 USD equivalent in ETH (one-time)
+- **Enforced in:** AgentAccountFactory.createAccount (payable)
+- **Conversion:** Uses PriceOracle.getEthUsdPrice() for real-time ETH/USD rate
+- **Formula:** `creationFeeUsd * 1e20 / ethUsdPrice` (creationFeeUsd is 6 decimals, ethUsdPrice is 8 decimals)
+- **Example:** At ETH = $2,000 → creation fee = 0.005 ETH
+
+### Transfer Fee (Outbound Only)
+- **Rate:** 10 basis points (0.10%)
+- **Cap:** $100 USD equivalent per transaction
+- **Applied on:** Every `execute()` or `executeBatch()` call with `value > 0`
+- **Not charged on:** Inbound deposits (receive()), zero-value calls (ERC-20 via calldata)
+- **Formula:** `fee = value * transferFeeBps / 10000`, capped at `usdToWei(transferFeeCapUsd)`
+
+| Transfer | Fee |
+|----------|-----|
+| $1,000 | $1.00 |
+| $10,000 | $10.00 |
+| $100,000 | $100.00 (cap) |
+| $2,000,000 | $100.00 (cap) |
+
+## Smart Contracts (Sepolia)
+
+### IdentityRegistry
+- **Address:** 0xc1fa477f991C74Cc665E605fC74f0e2B795b5104
+- **Purpose:** ERC-8004 agent identity registration
+- **Key functions:**
+  - `registerAgent(bytes32 agentId, string metadata)` — Register a new agent
+  - `getAgent(bytes32 agentId) → (address owner, string metadata, bool active, uint256 registeredAt)` — Get agent details
+  - `isAgentActive(bytes32 agentId) → bool` — Check if agent is active
+
+### PolicyRegistry
+- **Address:** 0x92cd41e6a4aA13072CeBCda8830d48f269F058c4
+- **Purpose:** On-chain policy and permission storage
+- **Key functions:**
+  - `createPolicy(bytes32 contentHash) → bytes32 policyId` — Create a new policy
+  - `grantPermission(bytes32 policyId, bytes32 agentId, uint256 validFrom, uint256 validUntil) → bytes32 permissionId` — Grant permission
+  - `revokePermission(bytes32 permissionId)` — Revoke a permission
+  - `isPermissionValid(bytes32 permissionId) → bool` — Check if permission is still valid
+  - `getAgentPermissions(bytes32 agentId) → bytes32[]` — Get all permissions for an agent
+
+### PermissionEnforcer
+- **Address:** 0xBe1cd378Ec32Feb71851B2EFbb0D9c6635cc22DF
+- **Purpose:** Action validation with constraints (value limits, volume caps, tx count, token/protocol/chain allowlists)
+- **Key functions:**
+  - `validateAction(bytes32 agentId, bytes32 actionHash, bytes actionData) → ValidationResult` — Validate an action against permissions
+  - `setConstraints(bytes32 permissionId, uint256 maxValuePerTx, uint256 maxDailyVolume, uint256 maxTxCount, bytes32[] allowedActions, address[] allowedTokens, address[] allowedProtocols, uint256[] allowedChains)` — Set permission constraints
+  - `recordUsage(bytes32 agentId, bytes32 actionHash, uint256 value)` — Record usage after action
+  - `getRemainingQuota(bytes32 permissionId, bytes32 agentId, bytes32 actionHash) → (uint256 remainingVolume, uint256 remainingTxCount)` — Check remaining quota
+  - `setPriceOracle(address _priceOracle)` — Set price oracle for cross-token normalization
+
+### PriceOracle
+- **Address:** 0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8
+- **Purpose:** Chainlink-powered ETH/USD and token price feeds for USD conversion
+- **Key functions:**
+  - `getEthUsdPrice() → uint256` — Returns ETH/USD price (8 decimals, e.g. 200000000000 = $2000)
+  - `getEthValue(address token, uint256 amount) → uint256` — Convert token amount to ETH equivalent
+  - `setTokenFeed(address token, address feed)` — Configure Chainlink feed for a token
+  - `STALENESS_THRESHOLD` — 1 hour; reverts if price feed is stale
+
+### GuardrailFeeManager
+- **Address:** Deployed with fee upgrade (see deploy script)
+- **Purpose:** Centralized fee configuration for all accounts and the factory
+- **Why separate contract:** AgentSmartAccount uses immutable state. If fee config were inline, rates would be baked into each account's bytecode and could never change. FeeManager lets all accounts read current config at runtime.
+- **Key functions:**
+  - `getCreationFeeWei() → uint256` — Convert creationFeeUsd to wei using PriceOracle
+  - `calculateTransferFee(uint256 value) → uint256` — Calculate transfer fee in wei (with cap)
+  - `feeCollector() → address` — Treasury address receiving all fees
+  - `creationFeeUsd() → uint256` — Creation fee in 6-decimal USD (10_000000 = $10)
+  - `transferFeeBps() → uint256` — Transfer fee in basis points (10 = 0.10%)
+  - `transferFeeCapUsd() → uint256` — Transfer fee cap in 6-decimal USD (100_000000 = $100)
+  - `setFeeCollector(address)` — Update fee collector (owner only)
+  - `setCreationFee(uint256)` — Update creation fee (owner only)
+  - `setTransferFee(uint256 bps, uint256 capUsd)` — Update transfer fee (owner only)
+  - `setPriceOracle(address)` — Update price oracle (owner only)
+
+### AgentAccountFactory
+- **Address:** 0xA6F9dA39086CD7142c1494B062D70c8fB7e3896f
+- **Purpose:** CREATE2 factory for deterministic smart account deployment with creation fee
+- **Key functions:**
+  - `createAccount(address owner, bytes32 agentId, bytes32 salt) payable → address` — Deploy smart account (requires creation fee as msg.value; idempotent — refunds on duplicate)
+  - `getAddress(address owner, bytes32 agentId, bytes32 salt) → address` — Compute address without deploying
+  - `getCreationFee() → uint256` — Get current creation fee in wei
+
+### AgentSmartAccount
+- **Purpose:** ERC-4337 IAccount implementation with permission enforcement and transfer fees
+- **Deployed by:** AgentAccountFactory (not directly)
+- **Key functions:**
+  - `execute(address target, uint256 value, bytes data)` — Execute a call (deducts transfer fee on value > 0)
+  - `executeBatch(address[] targets, uint256[] values, bytes[] datas)` — Execute batch (fee per sub-call with value > 0)
+  - `validateUserOp(UserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds) → uint256` — ERC-4337 validation (verifies signature + enforces permissions)
+  - `owner() → address` — Account owner (signer)
+  - `agentId() → bytes32` — Bound agent identifier
+  - `entryPoint() → address` — ERC-4337 EntryPoint address
+  - `receive()` — Accept inbound ETH (no fee)
+
+### Contract Interaction Flow
+```
+1. Factory.createAccount{value: fee}(owner, agentId, salt)
+   ├── Deploys AgentSmartAccount(owner, agentId, enforcer, entryPoint, feeManager)
+   └── Sends creation fee to feeManager.feeCollector()
+
+2. Account.execute(target, value, data)  [called by owner or via EntryPoint]
+   ├── feeManager.calculateTransferFee(value) → fee
+   ├── Send fee to feeManager.feeCollector()
+   └── Send (value - fee) to target
+
+3. EntryPoint.handleOps(userOps)  [ERC-4337 flow]
+   ├── Account.validateUserOp(userOp, hash, funds)
+   │   ├── Verify ECDSA signature (owner)
+   │   └── enforcer.validateAction(agentId, actionHash, actionData)
+   │       └── Check constraints (value, volume, tokens, protocols, chains)
+   └── Account.execute(target, value, data)  [if validation passes]
+```
+
+### Other Contract Details
+- EntryPoint (v0.6): 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
+- Chain ID: 11155111 (Sepolia)
+
 ## API Reference
 
 Base URL: https://your-backend-url
@@ -138,16 +261,6 @@ Response (denied):
 }
 ```
 
-## Smart Contracts (Sepolia)
-
-- IdentityRegistry: 0xc1fa477f991C74Cc665E605fC74f0e2B795b5104
-- PolicyRegistry: 0x92cd41e6a4aA13072CeBCda8830d48f269F058c4
-- PermissionEnforcer: 0xBe1cd378Ec32Feb71851B2EFbb0D9c6635cc22DF
-- AgentAccountFactory: 0xA6F9dA39086CD7142c1494B062D70c8fB7e3896f
-- PriceOracle: 0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8
-- EntryPoint (v0.6): 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
-- Chain ID: 11155111
-
 ## Technology Stack
 
 - Backend: Go 1.22, Chi router, PostgreSQL (pgx), zerolog
@@ -169,11 +282,11 @@ Response (denied):
 
 ## Funding a Smart Account
 
-Send ETH to the smart account address from any wallet. The smart account accepts ETH from any source. Copy the address from the agent card in the dashboard and send ETH via MetaMask or any wallet.
+Send ETH to the smart account address from any wallet. The smart account accepts ETH from any source. Copy the address from the agent card in the dashboard and send ETH via MetaMask or any wallet. No fee is charged on inbound deposits.
 
 ## Withdrawing from a Smart Account
 
-Withdrawal method depends on signer type:
+Withdrawal method depends on signer type. A transfer fee of 10 bps (0.10%), capped at $100 USD, is deducted from outbound ETH transfers.
 
 ### Wallet Signer (Connected Wallet)
 Your MetaMask wallet is the smart account owner. Use the Withdraw button in the agent card dropdown menu. The transaction is signed by MetaMask directly.
@@ -188,3 +301,4 @@ The bot's private key is the smart account owner. Two options:
 - Dashboard: /
 - Documentation: /docs
 - About: /about
+- Skills: /skills/guardrail-smart-accounts.md

@@ -18,6 +18,9 @@ import {
   ArrowDownToLine,
   Send,
   Workflow,
+  Blocks,
+  DollarSign,
+  Globe,
 } from 'lucide-react'
 
 export default function DocsPage() {
@@ -53,11 +56,12 @@ export default function DocsPage() {
           </div>
 
           <Tabs defaultValue="quickstart" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="quickstart">Quick Start</TabsTrigger>
               <TabsTrigger value="concepts">Concepts</TabsTrigger>
               <TabsTrigger value="workflows">Workflows</TabsTrigger>
               <TabsTrigger value="api">API Reference</TabsTrigger>
+              <TabsTrigger value="contracts">Smart Contracts</TabsTrigger>
               <TabsTrigger value="integration">Integration</TabsTrigger>
             </TabsList>
 
@@ -660,6 +664,212 @@ const hash = await client.sendTransaction({
                       <code>GET /api/v1/audit</code>
                       <span className="text-muted-foreground">Query audit logs</span>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="contracts" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    Network Information
+                  </CardTitle>
+                  <CardDescription>
+                    Guardrail contracts are deployed on Ethereum Sepolia testnet
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Network</p>
+                      <p className="font-semibold">Sepolia</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Chain ID</p>
+                      <p className="font-semibold font-mono">11155111</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">EntryPoint (v0.6)</p>
+                      <p className="font-mono text-xs break-all">0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Blocks className="h-4 w-4 text-primary" />
+                      IdentityRegistry
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">ERC-8004 agent identity registration</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xc1fa477f991C74Cc665E605fC74f0e2B795b5104</code>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <strong>Key functions:</strong> registerAgent, getAgent, isAgentActive
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Blocks className="h-4 w-4 text-primary" />
+                      PolicyRegistry
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">On-chain policy and permission storage</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x92cd41e6a4aA13072CeBCda8830d48f269F058c4</code>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <strong>Key functions:</strong> createPolicy, grantPermission, revokePermission, isPermissionValid
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-primary" />
+                      PermissionEnforcer
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">Action validation with constraints (value, volume, tx count, tokens, protocols, chains)</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xBe1cd378Ec32Feb71851B2EFbb0D9c6635cc22DF</code>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <strong>Key functions:</strong> validateAction, setConstraints, recordUsage, getRemainingQuota
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Blocks className="h-4 w-4 text-primary" />
+                      PriceOracle
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">Chainlink-powered ETH/USD and token price feeds for USD conversion</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8</code>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <strong>Key functions:</strong> getEthUsdPrice, getEthValue, setTokenFeed
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                      GuardrailFeeManager
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">Centralized fee configuration for account creation and transfer fees</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded italic">Deployed with next upgrade</code>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <strong>Key functions:</strong> getCreationFeeWei, calculateTransferFee, feeCollector
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Blocks className="h-4 w-4 text-primary" />
+                      AgentAccountFactory
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-2">CREATE2 factory for deterministic smart account deployment</p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xA6F9dA39086CD7142c1494B062D70c8fB7e3896f</code>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <strong>Key functions:</strong> createAccount (payable), getAddress, getCreationFee
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Fee Structure
+                  </CardTitle>
+                  <CardDescription>
+                    Protocol-level fees enforced on-chain via GuardrailFeeManager
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-lg border p-4">
+                      <h4 className="font-semibold mb-2">Account Creation Fee</h4>
+                      <p className="text-2xl font-bold text-primary mb-1">$10 USD</p>
+                      <p className="text-sm text-muted-foreground">
+                        One-time fee in ETH equivalent, charged at smart account deployment.
+                        At ETH = $2,000, this is 0.005 ETH.
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-4">
+                      <h4 className="font-semibold mb-2">Transfer Fee (Outbound)</h4>
+                      <p className="text-2xl font-bold text-primary mb-1">10 bps (0.10%)</p>
+                      <p className="text-sm text-muted-foreground">
+                        Applied on outbound ETH transfers. Capped at $100 USD per transaction.
+                        Inbound deposits are free.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted p-4">
+                    <h4 className="font-semibold text-sm mb-3">Transfer Fee Examples</h4>
+                    <div className="grid grid-cols-4 gap-2 text-sm">
+                      <div className="font-medium">Transfer</div>
+                      <div className="font-medium">Fee</div>
+                      <div className="font-medium">Transfer</div>
+                      <div className="font-medium">Fee</div>
+                      <div className="text-muted-foreground">$1,000</div>
+                      <div>$1.00</div>
+                      <div className="text-muted-foreground">$100,000</div>
+                      <div>$100 (cap)</div>
+                      <div className="text-muted-foreground">$10,000</div>
+                      <div>$10.00</div>
+                      <div className="text-muted-foreground">$2,000,000</div>
+                      <div>$100 (cap)</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Code className="h-5 w-5" />
+                    Contract Interaction Flow
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-muted rounded-lg p-4">
+                    <pre className="text-xs overflow-x-auto">{`1. Factory.createAccount{value: fee}(owner, agentId, salt)
+   └── Deploys AgentSmartAccount(owner, agentId, enforcer, entryPoint, feeManager)
+   └── Sends creation fee to feeManager.feeCollector()
+
+2. Account.execute(target, value, data)  [called by owner or via EntryPoint]
+   └── feeManager.calculateTransferFee(value)  →  fee
+   └── Send fee to feeManager.feeCollector()
+   └── Send (value - fee) to target
+
+3. EntryPoint.handleOps(userOps)  [ERC-4337 flow]
+   └── Account.validateUserOp(userOp, hash, funds)
+       └── Verify ECDSA signature (owner)
+       └── enforcer.validateAction(agentId, actionHash, actionData)
+           └── Check policy constraints (value, volume, tokens, protocols, chains)
+   └── Account.execute(target, value, data)  [if validation passes]`}</pre>
                   </div>
                 </CardContent>
               </Card>

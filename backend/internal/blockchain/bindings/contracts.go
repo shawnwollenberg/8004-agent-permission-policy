@@ -118,8 +118,9 @@ func NewPriceOracle(address common.Address, backend bind.ContractBackend) (*Pric
 // --- AgentAccountFactory ---
 
 const agentAccountFactoryABI = `[
-	{"type":"function","name":"createAccount","inputs":[{"name":"owner","type":"address"},{"name":"agentId","type":"bytes32"},{"name":"salt","type":"bytes32"}],"outputs":[{"name":"account","type":"address"}],"stateMutability":"nonpayable"},
-	{"type":"function","name":"getAddress","inputs":[{"name":"owner","type":"address"},{"name":"agentId","type":"bytes32"},{"name":"salt","type":"bytes32"}],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"}
+	{"type":"function","name":"createAccount","inputs":[{"name":"owner","type":"address"},{"name":"agentId","type":"bytes32"},{"name":"salt","type":"bytes32"}],"outputs":[{"name":"account","type":"address"}],"stateMutability":"payable"},
+	{"type":"function","name":"getAddress","inputs":[{"name":"owner","type":"address"},{"name":"agentId","type":"bytes32"},{"name":"salt","type":"bytes32"}],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+	{"type":"function","name":"getCreationFee","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"}
 ]`
 
 type AgentAccountFactory struct {
@@ -133,4 +134,28 @@ func NewAgentAccountFactory(address common.Address, backend bind.ContractBackend
 	}
 	contract := bind.NewBoundContract(address, parsed, backend, backend, backend)
 	return &AgentAccountFactory{contract}, nil
+}
+
+// --- GuardrailFeeManager ---
+
+const guardrailFeeManagerABI = `[
+	{"type":"function","name":"getCreationFeeWei","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+	{"type":"function","name":"calculateTransferFee","inputs":[{"name":"value","type":"uint256"}],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+	{"type":"function","name":"feeCollector","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+	{"type":"function","name":"creationFeeUsd","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+	{"type":"function","name":"transferFeeBps","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+	{"type":"function","name":"transferFeeCapUsd","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"}
+]`
+
+type GuardrailFeeManager struct {
+	*bind.BoundContract
+}
+
+func NewGuardrailFeeManager(address common.Address, backend bind.ContractBackend) (*GuardrailFeeManager, error) {
+	parsed, err := abi.JSON(strings.NewReader(guardrailFeeManagerABI))
+	if err != nil {
+		return nil, err
+	}
+	contract := bind.NewBoundContract(address, parsed, backend, backend, backend)
+	return &GuardrailFeeManager{contract}, nil
 }
