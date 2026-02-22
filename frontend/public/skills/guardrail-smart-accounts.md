@@ -1,6 +1,6 @@
 # Guardrail Smart Accounts Skill
 
-> Create, fund, and manage isolated ERC-4337 smart accounts for AI agents with enforced on-chain spending guardrails.
+> Create and manage ERC-4337 smart accounts, policies, permissions, and enforcement for AI agents with on-chain spending guardrails.
 
 ## Overview
 
@@ -179,6 +179,288 @@ const transferFee = await publicClient.readContract({
 
 `publicClient` must be a read-only RPC client.
 
+### 5. Policy Management
+
+Create and manage policies that define what actions agents can perform, with constraints on value, volume, and scope.
+
+**Create Policy** — `POST /api/v1/policies`
+
+```javascript
+const response = await fetch(`${API_BASE_URL}/api/v1/policies`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    name: "DeFi Trading Policy",
+    description: "Allow swaps and transfers with daily limits",
+    definition: {
+      actions: ["swap", "transfer"],
+      assets: {
+        tokens: ["0xA0b8...eB48", "0xdAC1...1eC7"],
+        protocols: ["*"],
+        chains: [1, 8453],
+      },
+      constraints: {
+        maxValuePerTx: "1000000000000000000",
+        maxDailyVolume: "10000000000000000000",
+        maxWeeklyVolume: "50000000000000000000",
+        maxTxCount: 100,
+        requireApproval: false,
+      },
+      duration: {
+        validFrom: "2025-01-01T00:00:00Z",
+        validUntil: "2025-12-31T23:59:59Z",
+      },
+      conditions: [
+        { field: "amount", operator: "lte", value: "5000000000000000000" },
+      ],
+    },
+  }),
+});
+const policy = await response.json();
+```
+
+**PolicyDefinition structure:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `actions` | `string[]` | Allowed action types: `swap`, `transfer`, `approve`, `stake`, `unstake`, `deposit`, `withdraw`, `mint`, `burn`, `bridge`, `claim`, `vote`, `delegate`, `lp_add`, `lp_remove`, `borrow`, `repay`, `liquidate`, `*` (wildcard) |
+| `assets.tokens` | `string[]` | Token contract addresses, or `["*"]` for all |
+| `assets.protocols` | `string[]` | Protocol contract addresses, or `["*"]` for all |
+| `assets.chains` | `number[]` | Allowed chain IDs |
+| `constraints.maxValuePerTx` | `string` | Maximum value per transaction (wei) |
+| `constraints.maxDailyVolume` | `string` | Maximum daily volume (wei) |
+| `constraints.maxWeeklyVolume` | `string` | Maximum weekly volume (wei) |
+| `constraints.maxTxCount` | `number` | Maximum transaction count within the duration |
+| `constraints.requireApproval` | `boolean` | Whether transactions require manual approval |
+| `duration.validFrom` | `string` | ISO 8601 start time |
+| `duration.validUntil` | `string` | ISO 8601 end time |
+| `conditions` | `array` | Advanced rules with `field`, `operator` (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `contains`, `regex`), and `value` |
+
+**Activate Policy** — `POST /api/v1/policies/{id}/activate`
+
+Registers the policy on-chain via PolicyRegistry. Required before granting permissions.
+
+```javascript
+await fetch(`${API_BASE_URL}/api/v1/policies/${policyId}/activate`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${token}` },
+});
+```
+
+**Update Policy** — `PUT /api/v1/policies/{id}`
+
+Draft policies update directly. Active policies create a new version.
+
+```javascript
+await fetch(`${API_BASE_URL}/api/v1/policies/${policyId}`, {
+  method: "PUT",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    name: "Updated Policy Name",
+    definition: {
+      actions: ["swap", "transfer", "approve"],
+      constraints: { maxValuePerTx: "2000000000000000000" },
+    },
+  }),
+});
+```
+
+**Revoke Policy** — `POST /api/v1/policies/{id}/revoke`
+
+Deactivates the policy on-chain. Active permissions using this policy will no longer validate.
+
+**Reactivate Policy** — `POST /api/v1/policies/{id}/reactivate`
+
+Re-registers a previously revoked policy on-chain.
+
+**List Policies** — `GET /api/v1/policies`
+
+**Get Policy** — `GET /api/v1/policies/{id}`
+
+**Delete Policy** — `DELETE /api/v1/policies/{id}`
+
+Only draft policies can be deleted. Active or revoked policies must be revoked first.
+
+### 6. Permission Management
+
+Permissions link an agent to a policy, authorizing specific actions for a defined period.
+
+**Grant Permission** — `POST /api/v1/permissions`
+
+The agent must be active and the policy must be activated before granting a permission.
+
+```javascript
+const response = await fetch(`${API_BASE_URL}/api/v1/permissions`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    agent_id: "agent-uuid",
+    policy_id: "policy-uuid",
+    valid_from: "2025-01-01T00:00:00Z",
+    valid_until: "2025-12-31T23:59:59Z",
+  }),
+});
+const permission = await response.json();
+```
+
+**Mint Permission** — `POST /api/v1/permissions/{id}/mint`
+
+Registers the permission on-chain via `PolicyRegistry.grantPermission()`. For smart account agents, syncs constraints to PermissionEnforcer. Returns `onchain_token_id`.
+
+```javascript
+const minted = await fetch(
+  `${API_BASE_URL}/api/v1/permissions/${permissionId}/mint`,
+  {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  }
+).then((r) => r.json());
+// minted.onchain_token_id — on-chain token ID
+```
+
+**Revoke Permission** — `DELETE /api/v1/permissions/{id}`
+
+Revokes the permission. Calls `PolicyRegistry.revokePermission()` on-chain if the permission was minted.
+
+**List Permissions** — `GET /api/v1/permissions`
+
+Supports query parameters: `agent_id`, `policy_id`.
+
+```javascript
+const response = await fetch(
+  `${API_BASE_URL}/api/v1/permissions?agent_id=${agentId}`,
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+const permissions = await response.json();
+```
+
+**Get Permission** — `GET /api/v1/permissions/{id}`
+
+### 7. Action Validation
+
+Validate whether an agent is permitted to perform an action. Runs for both advisory (EOA) and enforced (smart account) agents.
+
+**Validate Action** — `POST /api/v1/validate`
+
+```javascript
+const result = await fetch(`${API_BASE_URL}/api/v1/validate`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    agent_id: "agent-uuid",
+    action: {
+      type: "swap",
+      token: "0xA0b8...eB48",
+      protocol: "0x7a25...3e6F",
+      amount: "500000000000000000",
+      chain: 8453,
+      to: "0xDef1...C0de",
+    },
+  }),
+}).then((r) => r.json());
+// result.allowed — boolean
+// result.reason — explanation if denied
+// result.permission_id — matching permission
+// result.policy_id — matching policy
+// result.constraints — active constraints
+// result.request_id — audit trail reference
+```
+
+For enforced (smart account) agents, validation acts as a pre-flight check before on-chain execution. The on-chain `PermissionEnforcer` performs the final enforcement in `validateUserOp`.
+
+**Simulate Action** — `POST /api/v1/validate/simulate`
+
+Same input as validate, but returns current usage and remaining quota without recording a validation request.
+
+```javascript
+const sim = await fetch(`${API_BASE_URL}/api/v1/validate/simulate`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    agent_id: "agent-uuid",
+    action: { type: "transfer", amount: "1000000000000000000", chain: 1 },
+  }),
+}).then((r) => r.json());
+// sim.would_allow — boolean
+// sim.reason — explanation
+// sim.matching_policy — policy ID if matched
+// sim.current_usage — current period usage
+// sim.remaining_quota — remaining allowance
+// sim.recommendations — suggested adjustments
+```
+
+**Batch Validate** — `POST /api/v1/validate/batch`
+
+Validate multiple actions in a single request.
+
+### 8. Audit & Monitoring
+
+Query the immutable audit trail for policy, permission, and validation events.
+
+**List Audit Logs** — `GET /api/v1/audit`
+
+Supports query parameters: `event_type`, `agent_id`, `policy_id`, `start_date`, `end_date`, `limit`, `offset`.
+
+```javascript
+const logs = await fetch(
+  `${API_BASE_URL}/api/v1/audit?event_type=policy.activated&start_date=2025-01-01T00:00:00Z`,
+  { headers: { Authorization: `Bearer ${token}` } }
+).then((r) => r.json());
+```
+
+Event types: `policy.created`, `policy.activated`, `policy.revoked`, `permission.created`, `permission.minted`, `permission.revoked`, `validation.request`.
+
+**Export Audit Logs** — `GET /api/v1/audit/export`
+
+Supports `format=json` or `format=csv`, plus `start_date` and `end_date` parameters.
+
+```javascript
+const exportUrl = `${API_BASE_URL}/api/v1/audit/export?format=csv&start_date=2025-01-01`;
+// Download or redirect to this URL
+```
+
+## Enforcement Model
+
+The system supports two enforcement tiers based on agent wallet type:
+
+### Advisory (EOA Agents)
+
+- Off-chain validation via `/api/v1/validate` logs actions and returns allow/deny decisions.
+- The backend **cannot prevent** on-chain execution for EOA wallets.
+- Use validation results for dashboards, alerts, and compliance monitoring.
+- Violations are recorded in audit logs for review.
+
+### Enforced (Smart Account Agents)
+
+- `AgentSmartAccount.validateUserOp()` calls `PermissionEnforcer` on-chain.
+- Transactions that violate policy constraints **revert before execution**.
+- The agent cannot bypass enforcement — it is built into the account's validation logic.
+- Off-chain validation still runs for dashboards, simulation, and pre-flight checks.
+
+### Which Tier Applies?
+
+| Agent Type | Enforcement | On-Chain Prevention | Off-Chain Validation |
+|------------|-------------|--------------------|--------------------|
+| EOA | Advisory | No | Yes |
+| Smart Account | Enforced | Yes | Yes |
+
+Upgrading from EOA to smart account is one-way via `POST /api/v1/agents/{id}/upgrade-to-smart-account`.
+
 ## Fee Structure
 
 ### Account Creation Fee
@@ -231,18 +513,9 @@ const transferFee = await publicClient.readContract({
 | AgentAccountFactory | `0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E` |
 | EntryPoint (v0.6) | `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789` |
 
-## Policy & Permission Management
+## Dashboard
 
-Policies and permissions can be managed at:
-
-**https://agentguardrail.xyz/**
-
-The dashboard enables:
-
-- Register agents and deploy smart accounts
-- Create policies with spending limits, allowed tokens, protocols, and chains
-- Grant and revoke permissions linking agents to policies
-- Monitor audit logs and enforcement events
+All API operations documented above are also available via the web dashboard at **https://agentguardrail.xyz/**, which provides a visual interface for managing agents, policies, permissions, and audit logs.
 
 If using dashboard-generated signer keypairs or API keys:
 
