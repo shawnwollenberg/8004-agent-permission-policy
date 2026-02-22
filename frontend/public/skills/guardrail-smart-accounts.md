@@ -63,9 +63,10 @@ These values must be provided via secure secret storage (not chat):
 - `GUARDRAIL_CHAIN_ID` — Target chain identifier
 - `GUARDRAIL_RPC_URL` — JSON-RPC endpoint for the target chain
 - `GUARDRAIL_SIGNING_MODE` — one of: `external_signer`, `wallet_connector`, `session_key`
-- `GUARDRAIL_SIGNER_ENDPOINT` — External signer service URL (when `GUARDRAIL_SIGNING_MODE` is `external_signer`)
-- `GUARDRAIL_SIGNER_AUTH_TOKEN` — External signer auth token (when `GUARDRAIL_SIGNING_MODE` is `external_signer`)
-- `GUARDRAIL_DASHBOARD_API_KEY` — Dashboard API key (only for dashboard API interaction, not required for direct contract usage)
+
+When using `external_signer` mode, the runtime also needs a signer service URL and a scoped, revocable authentication token — both provided by your external signer provider and stored in the same secure secret storage. These are not required for `wallet_connector` or `session_key` modes.
+
+For dashboard API interaction only (not required for direct contract usage), the runtime may also accept a dashboard API key.
 
 The runtime must validate the chain ID and reject unsupported networks by default.
 
