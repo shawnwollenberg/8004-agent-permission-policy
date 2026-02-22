@@ -9,9 +9,6 @@ metadata:
         - GUARDRAIL_CHAIN_ID
         - GUARDRAIL_RPC_URL
         - GUARDRAIL_SIGNING_MODE
-        - GUARDRAIL_SIGNER_ENDPOINT
-        - GUARDRAIL_SIGNER_AUTH_TOKEN
-        - GUARDRAIL_DASHBOARD_API_KEY
     primaryEnv: GUARDRAIL_RPC_URL
     emoji: "\U0001F6E1"
     homepage: https://agentguardrail.xyz
