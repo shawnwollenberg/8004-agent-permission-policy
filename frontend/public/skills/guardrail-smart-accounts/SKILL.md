@@ -1,7 +1,7 @@
 ---
 name: guardrail-smart-accounts
 description: Create, fund, and manage isolated ERC-4337 smart accounts for AI agents with enforced on-chain spending guardrails.
-version: 1.0.0
+version: 1.0.3
 metadata:
   openclaw:
     requires:
@@ -76,25 +76,17 @@ If secure signing is not configured, use this skill in **read-only mode** until 
 
 These values must be provided via secure secret storage (not chat):
 
-**Required:**
+- `GUARDRAIL_CHAIN_ID` — Target chain identifier
+- `GUARDRAIL_RPC_URL` — JSON-RPC endpoint for the target chain
+- `GUARDRAIL_SIGNING_MODE` — one of: `external_signer`, `wallet_connector`, `session_key`
 
-- `GUARDRAIL_CHAIN_ID`
-- `GUARDRAIL_RPC_URL`
-- `GUARDRAIL_SIGNING_MODE` — one of:
-  - `external_signer`
-  - `wallet_connector`
-  - `session_key`
+**Conditional configuration (signing-mode dependent):**
 
-**If Using External Signer:**
+If the signing mode is set to `external_signer`, the runtime must also be configured with a signer endpoint URL and authentication token. These are provided by the external signer service and should be stored in the same secure secret storage as the required variables above.
 
-- `GUARDRAIL_SIGNER_ENDPOINT`
-- `GUARDRAIL_SIGNER_AUTH_TOKEN`
+If interacting with dashboard APIs (not required for direct contract usage), a dashboard API key may also be configured.
 
-**Optional:**
-
-- `GUARDRAIL_DASHBOARD_API_KEY` — Only required if interacting with dashboard APIs. Not required for direct contract usage.
-
-The runtime must validate `chainId` and reject unsupported networks by default.
+The runtime must validate the chain ID and reject unsupported networks by default.
 
 ## Core Capabilities
 
