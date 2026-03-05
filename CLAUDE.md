@@ -26,24 +26,28 @@ Six main components:
 
 2. **ERC-8004 Authorization Issuer** - Mints/registers permission objects linking wallet, agent, and policy. Handles expiry, revocation, rotation.
 
-3. **Enforcement & Validation Layer** - Two tiers:
-   - **Advisory (EOA):** Off-chain validation API logs and alerts, but cannot prevent on-chain execution
-   - **Enforced (ERC-4337 Smart Account):** `AgentSmartAccount.validateUserOp()` calls `PermissionEnforcer` — violating transactions revert before execution. Off-chain validation still runs for dashboards and simulation.
+3. **Enforcement & Validation Layer** - Single enforced tier (smart accounts only):
+   - **Pre-flight validation API:** Off-chain `POST /api/v1/validate` runs policy simulation for dashboards and SDK use.
+   - **On-chain enforcement (ERC-4337 Smart Account):** `AgentSmartAccount.validateUserOp()` calls `PermissionEnforcer` — violating transactions revert before execution.
+   - All agents use smart accounts. EOA/advisory mode has been removed.
 
-4. **Smart Account System** (`contracts/src/AgentSmartAccount.sol`, `AgentAccountFactory.sol`) - ERC-4337 compatible accounts with CREATE2 deterministic deployment. Upgrade from EOA to smart account is one-way.
+4. **Smart Account System** (`contracts/src/AgentSmartAccount.sol`, `AgentAccountFactory.sol`) - ERC-4337 compatible accounts with CREATE2 deterministic deployment.
 
-5. **Audit & Activity Log** (`backend/internal/domain/audit/`) - Immutable policy history, execution trails, revocation events, enforcement events, smart account deployments.
+5. **On-Chain Event Indexer** (`backend/internal/blockchain/indexer.go`) - Polls the chain every 12 seconds for `EnforcementResult`, `ConstraintViolation`, `UsageRecorded`, `Executed`, and `AccountCreated` events. Writes them to `audit_logs` with `source='onchain'`, `tx_hash`, and `block_number`. Tracks position in `indexer_state` table. No-ops in simulated mode.
 
-6. **Dashboard & API** (`frontend/`, `backend/internal/api/`) - Human UI for permission management with wallet type selection (EOA vs Smart Account), enforcement badges, upgrade flow, and bot signer generation. Machine API for real-time validation with enforcement context.
+6. **Audit & Activity Log** (`backend/internal/domain/audit/`) - Immutable policy history, execution trails, revocation events, enforcement events, smart account deployments. Each log entry has a `source` field (`'offchain'` or `'onchain'`), and optional `tx_hash` / `block_number` for on-chain events.
+
+7. **Dashboard & API** (`frontend/`, `backend/internal/api/`) - Human UI for permission management with smart-account-only agent creation (connected wallet or generated bot signer), enforce badge always shown, audit log with on-chain event badges and Etherscan tx links. Machine API for real-time pre-flight validation.
 
 ## Database Schema
 
-Key tables: `wallets`, `agents` (with `wallet_type` and `enforcement_level`), `smart_accounts` (with `signer_type`: `'wallet'` or `'generated'`), `policies`, `permissions`, `validation_requests`, `enforcement_events`, `audit_logs`, `webhooks`, `api_keys`.
+Key tables: `wallets`, `agents` (always `wallet_type='smart_account'`, `enforcement_level='enforced'`), `smart_accounts` (with `signer_type`: `'wallet'` or `'generated'`), `policies`, `permissions`, `validation_requests`, `enforcement_events`, `audit_logs` (with `source`, `tx_hash`, `block_number`), `webhooks`, `api_keys`, `indexer_state`.
 
 Migrations in `backend/internal/database/migrations/`:
 - `000001_init` — Core tables
 - `000002_smart_accounts` — Smart account support, enforcement events, wallet_type/enforcement_level columns
 - `000003_signer_type` — Adds `signer_type` column to `smart_accounts` for bot-generated signers
+- `000004_smart_account_only` — Removes EOA/advisory support, adds on-chain audit fields, adds `indexer_state` table
 
 ## Development Commands
 
@@ -68,21 +72,45 @@ npm run dev
 npm run build
 ```
 
+## API Endpoints
+
+### Agents
+- `POST /api/v1/agents` — Create agent (smart account only, no wallet_type field)
+- `GET /api/v1/agents` — List agents
+- `POST /api/v1/agents/sync` — Sync on-chain agents
+- `GET /api/v1/agents/{id}` — Get agent
+- `PATCH /api/v1/agents/{id}` — Update agent
+- `DELETE /api/v1/agents/{id}` — Delete agent
+- `POST /api/v1/agents/{id}/register-onchain` — Register in IdentityRegistry
+- `POST /api/v1/agents/{id}/deploy-smart-account` — Deploy ERC-4337 account
+- `GET /api/v1/agents/{id}/smart-account` — Get smart account info
+
+> Note: `POST /api/v1/agents/{id}/upgrade-to-smart-account` has been removed. All agents are smart accounts.
+
+### Audit
+- `GET /api/v1/audit` — List audit logs (supports `source=onchain|offchain` filter)
+- `GET /api/v1/audit/export` — Export audit logs (JSON or CSV, includes source/tx_hash/block_number)
+
+### Validation
+- `POST /api/v1/validate` — Pre-flight policy check (always returns `enforcement_level: "enforced"`, `wallet_type: "smart_account"`, `onchain_enforced: true`)
+- `POST /api/v1/validate/batch` — Batch validate
+- `POST /api/v1/validate/simulate` — Simulate action
+
 ## Smart Contract Architecture
 
 - **IdentityRegistry** — ERC-8004 agent identity registration
 - **PolicyRegistry** — On-chain policy and permission storage
-- **PermissionEnforcer** — Action validation with constraints (value, volume, tx count, actions, tokens, protocols, chains). Supports legacy (64-byte) and extended (128-byte) `actionData` encoding.
-- **AgentSmartAccount** — ERC-4337 IAccount implementation. `validateUserOp` verifies ECDSA signature and enforces permissions via `PermissionEnforcer`.
-- **AgentAccountFactory** — CREATE2 factory for deterministic smart account deployment. Idempotent (returns existing account if already deployed).
+- **PermissionEnforcer** — Action validation with constraints (value, volume, tx count, actions, tokens, protocols, chains). Emits `EnforcementResult`, `ConstraintViolation`, `UsageRecorded` events indexed by the backend.
+- **AgentSmartAccount** — ERC-4337 IAccount implementation. `validateUserOp` verifies ECDSA signature and enforces permissions via `PermissionEnforcer`. Emits `Executed` event.
+- **AgentAccountFactory** — CREATE2 factory for deterministic smart account deployment. Emits `AccountCreated` event.
 
 EntryPoint v0.6 canonical address: `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`
 
 ## Key Design Decisions
 
-- Two enforcement tiers: Advisory (EOA) and Enforced (ERC-4337 Smart Account)
-- Off-chain validation runs for BOTH tiers (needed for dashboards, simulation, pre-flight checks)
-- Upgrade from EOA to smart account is one-way (no downgrade)
+- **Smart accounts only** — All agents use ERC-4337 smart accounts with enforced on-chain policy enforcement. No EOA/advisory tier.
+- Off-chain validation runs as a pre-flight simulation (needed for dashboards, SDK use, simulation)
+- On-chain indexer polls every 12 seconds; in simulated mode (no DEPLOYER_PRIVATE_KEY) it no-ops silently
 - Custom smart account (not Safe/ZeroDev module) — `validateUserOp` must call our `PermissionEnforcer` directly
 - Backend-initiated on-chain sync — when policies change, backend pushes constraints to chain
 - Backward-compatible `actionData` encoding — PermissionEnforcer supports both old (64-byte: value, token) and new (128-byte: value, token, protocol, chainId) formats

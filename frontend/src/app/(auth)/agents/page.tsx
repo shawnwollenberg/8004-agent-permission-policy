@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatDate } from '@/lib/utils'
 import { CopyableAddress } from '@/components/ui/copyable-address'
-import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, Shield, ShieldCheck, ArrowUpCircle, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, ShieldCheck, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi'
@@ -47,13 +47,9 @@ export default function AgentsPage() {
   const { address } = useAccount()
   const chainId = useChainId()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
-  const [upgradeAgentId, setUpgradeAgentId] = useState<string | null>(null)
   const [newAgent, setNewAgent] = useState({
     name: '',
     description: '',
-    agent_address: '',
-    wallet_type: 'smart_account' as 'eoa' | 'smart_account',
   })
 
   // Bot signer state
@@ -142,18 +138,18 @@ export default function AgentsPage() {
 
       let signerAddr: string
       let signerType: string | undefined
-      if (agent.wallet_type === 'smart_account' && signerSource === 'generated' && generatedKey) {
+      if (signerSource === 'generated' && generatedKey) {
         signerAddr = generatedKey.address
         signerType = 'generated'
       } else {
-        signerAddr = agent.wallet_type === 'smart_account' ? (address || '') : (newAgent.agent_address || address || '')
+        signerAddr = address || ''
         signerType = 'wallet'
       }
 
-      setNewAgent({ name: '', description: '', agent_address: '', wallet_type: 'smart_account' })
+      setNewAgent({ name: '', description: '' })
       toast({ title: 'Agent registered', variant: 'success' })
 
-      if (agent.wallet_type === 'smart_account' && signerAddr) {
+      if (signerAddr) {
         deployMutation.mutate({ agentId: agent.id, signerAddress: signerAddr, signerType })
       }
     },
@@ -178,17 +174,6 @@ export default function AgentsPage() {
     onError: (e: Error) => toast({ title: 'Failed to register on-chain', description: e.message, variant: 'destructive' }),
   })
 
-  const upgradeMutation = useMutation({
-    mutationFn: (id: string) => agents.upgradeToSmartAccount(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agents'] })
-      setIsUpgradeOpen(false)
-      setUpgradeAgentId(null)
-      toast({ title: 'Upgraded to Secure Account', variant: 'success' })
-    },
-    onError: (e: Error) => toast({ title: 'Failed to upgrade', description: e.message, variant: 'destructive' }),
-  })
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -202,23 +187,6 @@ export default function AgentsPage() {
     }
   }
 
-  const getEnforcementBadge = (agent: Agent) => {
-    if (agent.enforcement_level === 'enforced') {
-      return (
-        <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">
-          <ShieldCheck className="mr-1 h-3 w-3" />
-          Enforced
-        </Badge>
-      )
-    }
-    return (
-      <Badge variant="outline" className="border-amber-500 text-amber-600">
-        <Shield className="mr-1 h-3 w-3" />
-        Advisory
-      </Badge>
-    )
-  }
-
   const handleGenerateKey = () => {
     const privateKey = generatePrivateKey()
     const account = privateKeyToAccount(privateKey)
@@ -226,19 +194,14 @@ export default function AgentsPage() {
   }
 
   const handleCreate = () => {
-    const data: { name: string; description?: string; agent_address?: string; wallet_type?: string } = {
+    const data: { name: string; description?: string; agent_address?: string } = {
       name: newAgent.name,
-      wallet_type: newAgent.wallet_type,
     }
     if (newAgent.description) data.description = newAgent.description
-    if (newAgent.wallet_type === 'smart_account') {
-      if (signerSource === 'generated' && generatedKey) {
-        data.agent_address = generatedKey.address
-      } else if (address) {
-        data.agent_address = address
-      }
-    } else {
-      if (newAgent.agent_address) data.agent_address = newAgent.agent_address
+    if (signerSource === 'generated' && generatedKey) {
+      data.agent_address = generatedKey.address
+    } else if (address) {
+      data.agent_address = address
     }
     createMutation.mutate(data)
   }
@@ -339,7 +302,6 @@ export default function AgentsPage() {
     if (!withdrawAgent?.smart_account_address || !address || !withdrawAmount || !botKeyInput) return
 
     try {
-      // Validate the private key matches the agent's signer
       const key = (botKeyInput.startsWith('0x') ? botKeyInput : `0x${botKeyInput}`) as `0x${string}`
       const account = privateKeyToAccount(key)
 
@@ -371,7 +333,6 @@ export default function AgentsPage() {
       setBotKeyTxHash(hash)
       setBotKeyTxStatus('confirming')
 
-      // Wait for confirmation by polling
       const { createPublicClient } = await import('viem')
       const publicClient = createPublicClient({
         chain: getViemChain(withdrawChainId),
@@ -383,7 +344,6 @@ export default function AgentsPage() {
       if (receipt.status === 'success') {
         setBotKeyTxStatus('confirmed')
         toast({ title: 'Withdrawal confirmed', description: 'Sent to your wallet', variant: 'success' })
-        // Clear the bot key from memory
         setBotKeyInput('')
         setTimeout(() => {
           setWithdrawOpen(false)
@@ -435,7 +395,7 @@ export default function AgentsPage() {
         <div>
           <h2 className="text-2xl font-bold">Agents</h2>
           <p className="text-muted-foreground">
-            Manage your AI agents and their identities
+            Manage your AI agents and their on-chain Secure Accounts
           </p>
         </div>
         <Dialog.Root open={isCreateOpen} onOpenChange={handleCloseCreateDialog}>
@@ -452,56 +412,10 @@ export default function AgentsPage() {
                 Register New Agent
               </Dialog.Title>
               <Dialog.Description className="text-sm text-muted-foreground mb-4">
-                Add an AI agent to your account to manage its permissions
+                Each agent gets a Guardrail Secure Account — unauthorized transactions cannot execute on-chain.
               </Dialog.Description>
 
               <div className="space-y-4">
-                {/* Wallet Type Selector */}
-                <div>
-                  <Label className="mb-2 block">Wallet Type</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewAgent({ ...newAgent, wallet_type: 'eoa', agent_address: '' })
-                        setSignerSource('wallet')
-                        setGeneratedKey(null)
-                      }}
-                      className={`rounded-lg border-2 p-3 text-left transition-colors ${
-                        newAgent.wallet_type === 'eoa'
-                          ? 'border-primary bg-primary/5'
-                          : 'border-muted hover:border-muted-foreground/30'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Shield className="h-4 w-4 text-amber-500" />
-                        <span className="font-medium text-sm">External Wallet</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Monitor with advisory alerts and reconciliation
-                      </p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNewAgent({ ...newAgent, wallet_type: 'smart_account', agent_address: address || '' })}
-                      className={`rounded-lg border-2 p-3 text-left transition-colors ${
-                        newAgent.wallet_type === 'smart_account'
-                          ? 'border-primary bg-primary/5'
-                          : 'border-muted hover:border-muted-foreground/30'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                        <span className="font-medium text-sm">Secure Account</span>
-                        <Badge variant="secondary" className="text-[10px] px-1 py-0">Recommended</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Guaranteed enforcement — unauthorized transactions cannot execute
-                      </p>
-                    </button>
-                  </div>
-                </div>
-
                 <div>
                   <Label htmlFor="name">Agent Name</Label>
                   <Input
@@ -525,104 +439,88 @@ export default function AgentsPage() {
                   />
                 </div>
 
-                {newAgent.wallet_type === 'smart_account' ? (
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="mb-2 block">Signer Source</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSignerSource('wallet')
-                            setGeneratedKey(null)
-                          }}
-                          className={`rounded-md border px-3 py-2 text-sm transition-colors ${
-                            signerSource === 'wallet'
-                              ? 'border-primary bg-primary/5 font-medium'
-                              : 'border-muted hover:border-muted-foreground/30'
-                          }`}
-                        >
-                          Connected Wallet
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSignerSource('generated')}
-                          className={`rounded-md border px-3 py-2 text-sm transition-colors flex items-center justify-center gap-1.5 ${
-                            signerSource === 'generated'
-                              ? 'border-primary bg-primary/5 font-medium'
-                              : 'border-muted hover:border-muted-foreground/30'
-                          }`}
-                        >
-                          <Key className="h-3.5 w-3.5" />
-                          Generate Bot Signer
-                        </button>
-                      </div>
-                    </div>
-
-                    {signerSource === 'wallet' ? (
-                      <div>
-                        <Label>Signer Address</Label>
-                        <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
-                          {address || 'Connect wallet to continue'}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Your connected wallet will sign transactions for the Secure Account.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {!generatedKey ? (
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-2">
-                              A new keypair will be generated for your bot. The private key will be shown once after account creation.
-                            </p>
-                            <Button type="button" variant="outline" size="sm" onClick={handleGenerateKey}>
-                              <Key className="mr-2 h-3.5 w-3.5" />
-                              Generate Key
-                            </Button>
-                          </div>
-                        ) : (
-                          <div>
-                            <Label>Bot Signer Address</Label>
-                            <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm font-mono">
-                              {generatedKey.address}
-                            </div>
-                            <div className="flex items-start gap-2 mt-2 rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-2">
-                              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                              <p className="text-xs text-amber-700 dark:text-amber-400">
-                                You must save the private key after creation — it cannot be recovered.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
+                <div className="space-y-3">
                   <div>
-                    <Label htmlFor="agent_address">Agent Wallet Address (optional)</Label>
-                    <Input
-                      id="agent_address"
-                      value={newAgent.agent_address}
-                      onChange={(e) =>
-                        setNewAgent({ ...newAgent, agent_address: e.target.value })
-                      }
-                      placeholder="0x..."
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      The wallet address the agent uses for transactions. Leave empty to assign later.
-                    </p>
+                    <Label className="mb-2 block">Signer Source</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSignerSource('wallet')
+                          setGeneratedKey(null)
+                        }}
+                        className={`rounded-md border px-3 py-2 text-sm transition-colors ${
+                          signerSource === 'wallet'
+                            ? 'border-primary bg-primary/5 font-medium'
+                            : 'border-muted hover:border-muted-foreground/30'
+                        }`}
+                      >
+                        Connected Wallet
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignerSource('generated')}
+                        className={`rounded-md border px-3 py-2 text-sm transition-colors flex items-center justify-center gap-1.5 ${
+                          signerSource === 'generated'
+                            ? 'border-primary bg-primary/5 font-medium'
+                            : 'border-muted hover:border-muted-foreground/30'
+                        }`}
+                      >
+                        <Key className="h-3.5 w-3.5" />
+                        Generate Bot Signer
+                      </button>
+                    </div>
                   </div>
-                )}
 
-                {newAgent.wallet_type === 'smart_account' && (
-                  <div className="rounded-md bg-muted p-3">
-                    <p className="text-xs text-muted-foreground">
-                      A Guardrail Secure Account will be deployed for this agent. Once assets are in a Guardrail
-                      Secure Account, unauthorized transactions cannot execute.
-                    </p>
+                  {signerSource === 'wallet' ? (
+                    <div>
+                      <Label>Signer Address</Label>
+                      <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                        {address || 'Connect wallet to continue'}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Your connected wallet will sign transactions for the Secure Account.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {!generatedKey ? (
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            A new keypair will be generated for your bot. The private key will be shown once after account creation.
+                          </p>
+                          <Button type="button" variant="outline" size="sm" onClick={handleGenerateKey}>
+                            <Key className="mr-2 h-3.5 w-3.5" />
+                            Generate Key
+                          </Button>
+                        </div>
+                      ) : (
+                        <div>
+                          <Label>Bot Signer Address</Label>
+                          <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm font-mono">
+                            {generatedKey.address}
+                          </div>
+                          <div className="flex items-start gap-2 mt-2 rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                            <p className="text-xs text-amber-700 dark:text-amber-400">
+                              You must save the private key after creation — it cannot be recovered.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-md bg-muted p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                    <span className="text-sm font-medium">Guardrail Secure Account</span>
                   </div>
-                )}
+                  <p className="text-xs text-muted-foreground">
+                    A Guardrail Secure Account will be deployed for this agent. All policies are enforced on-chain — unauthorized transactions cannot execute.
+                  </p>
+                </div>
               </div>
 
               <div className="mt-6 flex justify-end gap-3">
@@ -631,7 +529,7 @@ export default function AgentsPage() {
                 </Dialog.Close>
                 <Button
                   onClick={handleCreate}
-                  disabled={!newAgent.name || createMutation.isPending || (newAgent.wallet_type === 'smart_account' && signerSource === 'generated' && !generatedKey)}
+                  disabled={!newAgent.name || createMutation.isPending || (signerSource === 'generated' && !generatedKey)}
                 >
                   {createMutation.isPending ? 'Registering...' : 'Register Agent'}
                 </Button>
@@ -733,46 +631,6 @@ export default function AgentsPage() {
                 </div>
               </div>
             )}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      {/* Upgrade Confirmation Dialog */}
-      <Dialog.Root open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg">
-            <Dialog.Title className="text-lg font-semibold">
-              Upgrade to Guardrail Secure Account
-            </Dialog.Title>
-            <Dialog.Description className="text-sm text-muted-foreground mb-4">
-              This will upgrade the agent to a Guardrail Secure Account with guaranteed enforcement.
-            </Dialog.Description>
-            <div className="space-y-3 mb-6">
-              <div className="rounded-md bg-muted p-3 text-sm space-y-2">
-                <p>This upgrade will:</p>
-                <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                  <li>Deploy a Guardrail Secure Account controlled by the current wallet</li>
-                  <li>The existing wallet becomes the signer for the Secure Account</li>
-                  <li>All policies will be enforced on-chain going forward</li>
-                  <li>Once assets are in the Secure Account, unauthorized transactions cannot execute</li>
-                </ul>
-              </div>
-              <div className="rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm text-amber-700 dark:text-amber-400">
-                This is a one-way upgrade. You cannot downgrade back to advisory mode.
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Dialog.Close asChild>
-                <Button variant="outline">Cancel</Button>
-              </Dialog.Close>
-              <Button
-                onClick={() => upgradeAgentId && upgradeMutation.mutate(upgradeAgentId)}
-                disabled={upgradeMutation.isPending}
-              >
-                {upgradeMutation.isPending ? 'Upgrading...' : 'Confirm Upgrade'}
-              </Button>
-            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -923,7 +781,7 @@ export default function AgentsPage() {
             <Bot className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold">No agents yet</h3>
             <p className="text-muted-foreground mb-4">
-              Register your first AI agent to start managing permissions
+              Register your first AI agent to get started with on-chain enforcement
             </p>
             <Button onClick={() => setIsCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
@@ -964,7 +822,7 @@ export default function AgentsPage() {
                           Register On-chain
                         </DropdownMenu.Item>
                       )}
-                      {agent.wallet_type === 'smart_account' && !agent.smart_account_address && (
+                      {!agent.smart_account_address && (
                         <DropdownMenu.Item
                           className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
                           onClick={() => {
@@ -980,25 +838,13 @@ export default function AgentsPage() {
                           Deploy Secure Account
                         </DropdownMenu.Item>
                       )}
-                      {agent.wallet_type === 'smart_account' && agent.smart_account_address && (
+                      {agent.smart_account_address && (
                         <DropdownMenu.Item
                           className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
                           onClick={() => handleOpenWithdraw(agent)}
                         >
                           <ArrowDownToLine className="h-4 w-4" />
                           Withdraw
-                        </DropdownMenu.Item>
-                      )}
-                      {agent.wallet_type === 'eoa' && (
-                        <DropdownMenu.Item
-                          className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
-                          onClick={() => {
-                            setUpgradeAgentId(agent.id)
-                            setIsUpgradeOpen(true)
-                          }}
-                        >
-                          <ArrowUpCircle className="h-4 w-4" />
-                          Upgrade to Secure Account
                         </DropdownMenu.Item>
                       )}
                       <DropdownMenu.Item
@@ -1016,26 +862,25 @@ export default function AgentsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 flex-wrap">
                     {getStatusBadge(agent.status)}
-                    {getEnforcementBadge(agent)}
+                    <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">
+                      <ShieldCheck className="mr-1 h-3 w-3" />
+                      Enforced
+                    </Badge>
                     {agent.onchain_registry_id && (
                       <Badge variant="outline">On-chain</Badge>
                     )}
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">
-                      {agent.wallet_type === 'smart_account' ? 'Secure Account' : 'External Wallet'}
-                    </p>
-                    {agent.wallet_type === 'smart_account' && !agent.smart_account_address ? (
+                    <p className="text-xs text-muted-foreground">Secure Account</p>
+                    {!agent.smart_account_address ? (
                       <p className="text-sm font-mono text-amber-500 animate-pulse">
                         Deploying...
                       </p>
-                    ) : agent.wallet_type === 'smart_account' && agent.smart_account_address ? (
+                    ) : (
                       <CopyableAddress address={agent.smart_account_address} />
-                    ) : agent.agent_address ? (
-                      <CopyableAddress address={agent.agent_address} />
-                    ) : null}
+                    )}
                   </div>
-                  {agent.wallet_type === 'smart_account' && agent.signer_address && (
+                  {agent.signer_address && (
                     <div>
                       <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                         Signer

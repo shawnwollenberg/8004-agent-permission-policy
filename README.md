@@ -13,20 +13,28 @@ erc8004-policy-saas/
 └── frontend/         # Next.js 15 dashboard
 ```
 
-### Bot Signer Generation
+### Smart Account Enforcement
 
-When creating a Secure Account agent, users can choose between:
+Every agent gets a Guardrail Secure Account — an ERC-4337 smart account where `validateUserOp` calls the `PermissionEnforcer` contract. Unauthorized transactions revert before execution at the protocol level.
+
+There is no advisory/EOA mode. All agents are enforced smart accounts.
+
+### Bot Signer Options
+
+When creating an agent, users choose the signer:
 - **Connected Wallet** — Use the connected MetaMask wallet as the signer (default)
 - **Generate Bot Signer** — Generate a fresh keypair client-side for bots that need a raw private key. The private key is shown once after deployment and never stored.
 
-### Enforcement Tiers
+### On-Chain Event Indexer
 
-Agents operate in one of two enforcement modes:
+The backend includes an event indexer (`backend/internal/blockchain/indexer.go`) that polls the chain every 12 seconds for:
+- `EnforcementResult` — allowed or blocked transactions
+- `ConstraintViolation` — policy constraint violations
+- `UsageRecorded` — usage tracking events
+- `Executed` — smart account executions
+- `AccountCreated` — new account deployments
 
-| Tier | Wallet Type | Enforcement | Description |
-|------|------------|-------------|-------------|
-| **Advisory** | EOA | Off-chain only | Validation API logs and alerts, but cannot prevent on-chain execution |
-| **Enforced** | ERC-4337 Smart Account | On-chain + off-chain | Smart account calls `PermissionEnforcer` during `validateUserOp` — violating transactions revert before execution |
+Events are written to `audit_logs` with `source='onchain'`, `tx_hash`, and `block_number`. The indexer tracks its position in the `indexer_state` table. It no-ops in simulated mode (no `DEPLOYER_PRIVATE_KEY`).
 
 ## Quick Start
 
@@ -78,12 +86,15 @@ npm run dev
 - `POST /api/v1/auth/verify` - Verify signature and get JWT
 
 ### Agents
-- `POST /api/v1/agents` - Register agent (supports `wallet_type`: `eoa` or `smart_account`)
+- `POST /api/v1/agents` - Register agent (smart account, always enforced — no `wallet_type` field needed)
 - `GET /api/v1/agents` - List agents
-- `POST /api/v1/agents/{id}/register-onchain` - Register on ERC-8004
-- `POST /api/v1/agents/{id}/deploy-smart-account` - Deploy ERC-4337 smart account (accepts optional `signer_type`: `wallet` or `generated`)
-- `GET /api/v1/agents/{id}/smart-account` - Get smart account details (includes `signer_type`)
-- `POST /api/v1/agents/{id}/upgrade-to-smart-account` - Upgrade EOA agent to enforced smart account (one-way)
+- `POST /api/v1/agents/sync` - Sync agents from on-chain registry
+- `GET /api/v1/agents/{id}` - Get agent
+- `PATCH /api/v1/agents/{id}` - Update agent
+- `DELETE /api/v1/agents/{id}` - Delete agent
+- `POST /api/v1/agents/{id}/register-onchain` - Register on ERC-8004 IdentityRegistry
+- `POST /api/v1/agents/{id}/deploy-smart-account` - Deploy ERC-4337 smart account (optional `signer_type`: `wallet` or `generated`)
+- `GET /api/v1/agents/{id}/smart-account` - Get smart account details
 
 ### Policies
 - `POST /api/v1/policies` - Create policy
@@ -95,19 +106,23 @@ npm run dev
 - `POST /api/v1/permissions` - Grant permission
 - `POST /api/v1/permissions/{id}/mint` - Mint on-chain
 
-### Validation (Core Product)
-- `POST /api/v1/validate` - Validate an action (returns `enforcement_level`, `wallet_type`, `onchain_enforced`)
+### Validation (Pre-flight)
+- `POST /api/v1/validate` - Pre-flight action check (always returns `enforcement_level: "enforced"`, `wallet_type: "smart_account"`, `onchain_enforced: true`)
 - `POST /api/v1/validate/batch` - Batch validation
 - `POST /api/v1/validate/simulate` - Simulate without recording
+
+### Audit
+- `GET /api/v1/audit` - List audit logs (supports `source=onchain|offchain` filter, returns `tx_hash` and `block_number` for on-chain events)
+- `GET /api/v1/audit/export` - Export audit logs (JSON or CSV)
 
 ## Smart Contracts
 
 Deployed on Sepolia:
 - `IdentityRegistry` - Agent identity management
 - `PolicyRegistry` - On-chain policy storage
-- `PermissionEnforcer` - Action validation with protocol and chain constraints
-- `AgentAccountFactory` - CREATE2 factory for deterministic smart account deployment
-- `AgentSmartAccount` - ERC-4337 account that enforces permissions in `validateUserOp`
+- `PermissionEnforcer` - Action validation with protocol and chain constraints. Emits `EnforcementResult`, `ConstraintViolation`, `UsageRecorded`.
+- `AgentAccountFactory` - CREATE2 factory for deterministic smart account deployment. Emits `AccountCreated`.
+- `AgentSmartAccount` - ERC-4337 account that enforces permissions in `validateUserOp`. Emits `Executed`.
 
 ### Build & Test
 

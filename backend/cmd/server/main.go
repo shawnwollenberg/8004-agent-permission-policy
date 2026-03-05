@@ -13,7 +13,9 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/erc8004/policy-saas/internal/api"
+	"github.com/erc8004/policy-saas/internal/blockchain"
 	"github.com/erc8004/policy-saas/internal/config"
+	"github.com/erc8004/policy-saas/internal/domain/audit"
 )
 
 func main() {
@@ -31,13 +33,23 @@ func main() {
 	logger.Info().Str("environment", cfg.Server.Environment).Strs("cors_origins", cfg.Server.AllowOrigins).Msg("starting server")
 
 	// Connect to database with retries
-	ctx := context.Background()
-	db, err := connectWithRetry(ctx, cfg, logger)
+	bgCtx := context.Background()
+	db, err := connectWithRetry(bgCtx, cfg, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to connect to database after retries")
 	}
 	defer db.Close()
 	logger.Info().Msg("connected to database")
+
+	// Create a cancellable context for background services (indexer, etc.)
+	svcCtx, svcCancel := context.WithCancel(bgCtx)
+	defer svcCancel()
+
+	// Start on-chain event indexer
+	chainClient := blockchain.NewClient(cfg, logger)
+	auditLogger := audit.NewLogger(db, logger)
+	indexer := blockchain.NewIndexer(chainClient, db, auditLogger, logger)
+	indexer.Start(svcCtx)
 
 	// Create server
 	server := api.NewServer(cfg, db, logger)
@@ -66,11 +78,14 @@ func main() {
 
 	logger.Info().Msg("shutting down server")
 
-	// Graceful shutdown with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Cancel background services
+	svcCancel()
 
-	if err := httpServer.Shutdown(ctx); err != nil {
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(bgCtx, 30*time.Second)
+	defer shutdownCancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Fatal().Err(err).Msg("server forced to shutdown")
 	}
 

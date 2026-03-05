@@ -24,6 +24,10 @@ type Event struct {
 	Details      map[string]interface{}
 	IPAddress    string
 	UserAgent    string
+	// On-chain fields
+	Source      string // "offchain" or "onchain"
+	TxHash      string
+	BlockNumber int64
 }
 
 type Logger struct {
@@ -41,10 +45,26 @@ func NewLogger(db *pgxpool.Pool, logger zerolog.Logger) *Logger {
 func (l *Logger) Log(ctx context.Context, event Event) {
 	detailsBytes, _ := json.Marshal(event.Details)
 
+	source := event.Source
+	if source == "" {
+		source = "offchain"
+	}
+
+	var txHash *string
+	if event.TxHash != "" {
+		txHash = &event.TxHash
+	}
+
+	var blockNumber *int64
+	if event.BlockNumber > 0 {
+		blockNumber = &event.BlockNumber
+	}
+
 	_, err := l.db.Exec(ctx,
-		`INSERT INTO audit_logs (wallet_id, agent_id, policy_id, permission_id, event_type, details, ip_address, user_agent)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		event.WalletID, event.AgentID, event.PolicyID, event.PermissionID, event.EventType, detailsBytes, nilIfEmpty(event.IPAddress), nilIfEmpty(event.UserAgent),
+		`INSERT INTO audit_logs (wallet_id, agent_id, policy_id, permission_id, event_type, details, ip_address, user_agent, source, tx_hash, block_number)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		event.WalletID, event.AgentID, event.PolicyID, event.PermissionID, event.EventType, detailsBytes,
+		nilIfEmpty(event.IPAddress), nilIfEmpty(event.UserAgent), source, txHash, blockNumber,
 	)
 	if err != nil {
 		l.logger.Error().Err(err).Str("event_type", event.EventType).Msg("failed to log audit event")
@@ -92,11 +112,11 @@ func (l *Logger) triggerWebhooks(ctx context.Context, event Event) {
 
 func (l *Logger) sendWebhook(ctx context.Context, webhookID uuid.UUID, url, secret string, event Event) {
 	payload := map[string]interface{}{
-		"id":         uuid.New().String(),
-		"type":       event.EventType,
-		"wallet_id":  event.WalletID.String(),
-		"timestamp":  time.Now().UTC().Format(time.RFC3339),
-		"details":    event.Details,
+		"id":        uuid.New().String(),
+		"type":      event.EventType,
+		"wallet_id": event.WalletID.String(),
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"details":   event.Details,
 	}
 	if event.AgentID != nil {
 		payload["agent_id"] = event.AgentID.String()

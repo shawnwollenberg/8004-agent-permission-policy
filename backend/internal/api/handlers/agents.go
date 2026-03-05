@@ -36,7 +36,6 @@ type CreateAgentRequest struct {
 	Name         string `json:"name"`
 	Description  string `json:"description,omitempty"`
 	AgentAddress string `json:"agent_address,omitempty"`
-	WalletType   string `json:"wallet_type,omitempty"`
 }
 
 func (h *Handlers) CreateAgent(w http.ResponseWriter, r *http.Request) {
@@ -57,12 +56,8 @@ func (h *Handlers) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	walletType := "eoa"
-	enforcementLevel := "advisory"
-	if req.WalletType == "smart_account" {
-		walletType = "smart_account"
-		enforcementLevel = "enforced"
-	}
+	walletType := "smart_account"
+	enforcementLevel := "enforced"
 
 	var agent Agent
 	err := h.db.QueryRow(r.Context(),
@@ -401,7 +396,7 @@ func (h *Handlers) SyncOnchainAgents(w http.ResponseWriter, r *http.Request) {
 		var agent Agent
 		err = h.db.QueryRow(ctx,
 			`INSERT INTO agents (wallet_id, name, description, status, wallet_type, enforcement_level, onchain_registry_id, onchain_registered_at)
-			 VALUES ($1, $2, $3, $4, 'eoa', 'advisory', $5, $6)
+			 VALUES ($1, $2, $3, $4, 'smart_account', 'enforced', $5, $6)
 			 RETURNING id, wallet_id, name, description, agent_address, onchain_registry_id, status, wallet_type, enforcement_level, created_at, updated_at, onchain_registered_at`,
 			walletID, name, description, status, registryHex, regAt,
 		).Scan(&agent.ID, &agent.WalletID, &agent.Name, &agent.Description, &agent.AgentAddress, &agent.OnchainRegistryID,

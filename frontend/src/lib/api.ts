@@ -57,8 +57,8 @@ export interface Agent {
   agent_address?: string
   onchain_registry_id?: string
   status: string
-  wallet_type: 'eoa' | 'smart_account'
-  enforcement_level: 'advisory' | 'enforced'
+  wallet_type: 'smart_account'
+  enforcement_level: 'enforced'
   smart_account_address?: string
   signer_address?: string
   signer_type?: 'wallet' | 'generated'
@@ -89,7 +89,7 @@ export const agents = {
   list: () => fetchApi<Agent[]>('/api/v1/agents'),
   sync: () => fetchApi<Agent[]>('/api/v1/agents/sync', { method: 'POST' }),
   get: (id: string) => fetchApi<Agent>(`/api/v1/agents/${id}`),
-  create: (data: { name: string; description?: string; agent_address?: string; wallet_type?: string }) =>
+  create: (data: { name: string; description?: string; agent_address?: string }) =>
     fetchApi<Agent>('/api/v1/agents', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<Agent>) =>
     fetchApi<Agent>(`/api/v1/agents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -103,8 +103,6 @@ export const agents = {
     fetchApi<SmartAccount>(`/api/v1/agents/${id}/deploy-smart-account`, { method: 'POST', body: JSON.stringify(data) }),
   getSmartAccount: (id: string) =>
     fetchApi<SmartAccount>(`/api/v1/agents/${id}/smart-account`),
-  upgradeToSmartAccount: (id: string) =>
-    fetchApi<SmartAccount>(`/api/v1/agents/${id}/upgrade-to-smart-account`, { method: 'POST' }),
 }
 
 // Policies
@@ -239,6 +237,9 @@ export interface AuditLog {
   details?: Record<string, unknown>
   ip_address?: string
   user_agent?: string
+  source: 'offchain' | 'onchain'
+  tx_hash?: string
+  block_number?: number
   created_at: string
 }
 
@@ -249,6 +250,7 @@ export const audit = {
     event_type?: string
     agent_id?: string
     policy_id?: string
+    source?: string
     start_date?: string
     end_date?: string
   }) => {

@@ -560,7 +560,7 @@ const hash = await client.sendTransaction({
   }
 }
 
-// Response (allowed — advisory agent)
+// Response (all agents use smart_account / enforced)
 {
   "allowed": true,
   "permission_id": "...",
@@ -569,18 +569,6 @@ const hash = await client.sendTransaction({
     "maxValuePerTx": "5000",
     "maxDailyVolume": "50000"
   },
-  "enforcement_level": "advisory",
-  "wallet_type": "eoa",
-  "onchain_enforced": false,
-  "request_id": "..."
-}
-
-// Response (allowed — enforced Secure Account agent)
-{
-  "allowed": true,
-  "permission_id": "...",
-  "policy_id": "...",
-  "constraints": { ... },
   "enforcement_level": "enforced",
   "wallet_type": "smart_account",
   "onchain_enforced": true,
@@ -648,10 +636,7 @@ const hash = await client.sendTransaction({
                       <code>POST /api/v1/agents/:id/deploy-smart-account</code>
                       <span className="text-muted-foreground">Deploy Secure Account (accepts signer_type: wallet | generated)</span>
                     </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <code>POST /api/v1/agents/:id/upgrade-to-smart-account</code>
-                      <span className="text-muted-foreground">Upgrade to Guardrail Secure Account</span>
-                    </div>
+
                     <div className="flex justify-between py-2 border-b">
                       <code>GET /api/v1/policies</code>
                       <span className="text-muted-foreground">List your policies</span>
@@ -1112,11 +1097,10 @@ if (allowed) {
                     <li className="flex gap-3">
                       <ArrowRight className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-medium">Upgrade to enforced mode for high-value agents</p>
+                        <p className="font-medium">All agents use Guardrail Secure Accounts</p>
                         <p className="text-sm text-muted-foreground">
-                          Start with advisory mode to test your policies, then upgrade to a Guardrail Secure Account
-                          for guaranteed on-chain enforcement. Once assets are in a Secure Account, unauthorized
-                          transactions cannot execute. This is a one-way upgrade for security.
+                          Every agent gets a Guardrail Secure Account with guaranteed on-chain enforcement.
+                          Once assets are in a Secure Account, unauthorized transactions cannot execute.
                         </p>
                       </div>
                     </li>

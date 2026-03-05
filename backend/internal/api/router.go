@@ -85,7 +85,6 @@ func (s *Server) setupRoutes() {
 				r.Post("/{id}/register-onchain", s.handlers.RegisterAgentOnchain)
 				r.Post("/{id}/deploy-smart-account", s.handlers.DeploySmartAccount)
 				r.Get("/{id}/smart-account", s.handlers.GetSmartAccount)
-				r.Post("/{id}/upgrade-to-smart-account", s.handlers.UpgradeToSmartAccount)
 			})
 
 			// Policies

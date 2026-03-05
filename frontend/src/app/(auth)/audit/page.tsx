@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatDateTime, formatRelativeTime } from '@/lib/utils'
-import { Activity, Download, Filter } from 'lucide-react'
+import { Activity, Download, Filter, ExternalLink } from 'lucide-react'
 import * as Select from '@radix-ui/react-select'
 
 const eventTypes = [
@@ -250,10 +250,15 @@ export default function AuditPage() {
               {auditLogs?.map((log) => (
                 <div key={log.id} className="flex items-start gap-4 p-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <Badge variant={getEventBadgeVariant(log.event_type) as any}>
                         {log.event_type}
                       </Badge>
+                      {log.source === 'onchain' && (
+                        <Badge variant="outline" className="border-blue-500 text-blue-600 dark:text-blue-400">
+                          ⛓ On-chain
+                        </Badge>
+                      )}
                       {log.agent_id && (
                         <Badge variant="outline">
                           Agent: {getAgentName(log.agent_id)}
@@ -264,7 +269,21 @@ export default function AuditPage() {
                           Policy: {getPolicyName(log.policy_id)}
                         </Badge>
                       )}
+                      {log.tx_hash && (
+                        <a
+                          href={`https://sepolia.etherscan.io/tx/${log.tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          {log.tx_hash.slice(0, 10)}...
+                        </a>
+                      )}
                     </div>
+                    {log.block_number && (
+                      <p className="text-xs text-muted-foreground mb-1">Block #{log.block_number}</p>
+                    )}
                     {log.details && (
                       <pre className="text-xs text-muted-foreground bg-muted p-2 rounded mt-2 overflow-x-auto">
                         {JSON.stringify(log.details, null, 2)}

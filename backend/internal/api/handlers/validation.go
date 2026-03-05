@@ -44,18 +44,11 @@ func (h *Handlers) ValidateAction(w http.ResponseWriter, r *http.Request) {
 	requestID := uuid.New()
 	startTime := time.Now()
 
-	// Look up agent's wallet type and enforcement level
-	var walletType, enforcementLevel string
-	err := h.db.QueryRow(r.Context(),
-		`SELECT wallet_type, enforcement_level FROM agents WHERE id = $1 AND wallet_id = $2`,
-		req.AgentID, userID,
-	).Scan(&walletType, &enforcementLevel)
-	if err != nil {
-		walletType = "eoa"
-		enforcementLevel = "advisory"
-	}
+	// All agents are smart_account with enforced level
+	const walletType = "smart_account"
+	const enforcementLevel = "enforced"
 
-	// Off-chain validation runs for BOTH tiers (advisory and enforced)
+	// Off-chain validation is a pre-flight simulation; on-chain enforcement handles real blocking
 	result := h.policyEngine.Validate(r.Context(), userID, req.AgentID, req.Action)
 
 	// Log the validation request
@@ -64,8 +57,6 @@ func (h *Handlers) ValidateAction(w http.ResponseWriter, r *http.Request) {
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 		requestID, userID, req.AgentID, req.Action.Type, req.Action, result.Allowed, result.Reason, result.PermissionID, result.PolicyID, time.Since(startTime).Milliseconds(),
 	)
-
-	onchainEnforced := walletType == "smart_account" && enforcementLevel == "enforced"
 
 	h.auditLogger.Log(r.Context(), audit.Event{
 		WalletID:     userID,
@@ -79,7 +70,7 @@ func (h *Handlers) ValidateAction(w http.ResponseWriter, r *http.Request) {
 			"reason":            result.Reason,
 			"request_id":        requestID,
 			"enforcement_level": enforcementLevel,
-			"onchain_enforced":  onchainEnforced,
+			"onchain_enforced":  true,
 		},
 	})
 
@@ -92,7 +83,7 @@ func (h *Handlers) ValidateAction(w http.ResponseWriter, r *http.Request) {
 		RequestID:        requestID,
 		EnforcementLevel: enforcementLevel,
 		WalletType:       walletType,
-		OnchainEnforced:  onchainEnforced,
+		OnchainEnforced:  true,
 	})
 }
 

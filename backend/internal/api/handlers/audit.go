@@ -23,6 +23,9 @@ type AuditLogEntry struct {
 	Details      map[string]interface{} `json:"details,omitempty"`
 	IPAddress    *string                `json:"ip_address,omitempty"`
 	UserAgent    *string                `json:"user_agent,omitempty"`
+	Source       string                 `json:"source"`
+	TxHash       *string                `json:"tx_hash,omitempty"`
+	BlockNumber  *int64                 `json:"block_number,omitempty"`
 	CreatedAt    time.Time              `json:"created_at"`
 }
 
@@ -50,10 +53,11 @@ func (h *Handlers) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	eventType := r.URL.Query().Get("event_type")
 	agentID := r.URL.Query().Get("agent_id")
 	policyID := r.URL.Query().Get("policy_id")
+	source := r.URL.Query().Get("source")
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
 
-	query := `SELECT id, wallet_id, agent_id, policy_id, permission_id, event_type, details, ip_address, user_agent, created_at
+	query := `SELECT id, wallet_id, agent_id, policy_id, permission_id, event_type, details, ip_address, user_agent, source, tx_hash, block_number, created_at
 		 FROM audit_logs WHERE wallet_id = $1`
 	args := []interface{}{userID}
 	argIdx := 2
@@ -71,6 +75,11 @@ func (h *Handlers) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	if policyID != "" {
 		query += fmt.Sprintf(" AND policy_id = $%d", argIdx)
 		args = append(args, policyID)
+		argIdx++
+	}
+	if source != "" {
+		query += fmt.Sprintf(" AND source = $%d", argIdx)
+		args = append(args, source)
 		argIdx++
 	}
 	if startDate != "" {
@@ -99,7 +108,7 @@ func (h *Handlers) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var l AuditLogEntry
 		var detailsBytes []byte
-		if err := rows.Scan(&l.ID, &l.WalletID, &l.AgentID, &l.PolicyID, &l.PermissionID, &l.EventType, &detailsBytes, &l.IPAddress, &l.UserAgent, &l.CreatedAt); err != nil {
+		if err := rows.Scan(&l.ID, &l.WalletID, &l.AgentID, &l.PolicyID, &l.PermissionID, &l.EventType, &detailsBytes, &l.IPAddress, &l.UserAgent, &l.Source, &l.TxHash, &l.BlockNumber, &l.CreatedAt); err != nil {
 			continue
 		}
 		if detailsBytes != nil {
@@ -135,7 +144,7 @@ func (h *Handlers) ExportAuditLogs(w http.ResponseWriter, r *http.Request) {
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
 
-	query := `SELECT id, wallet_id, agent_id, policy_id, permission_id, event_type, details, ip_address, user_agent, created_at
+	query := `SELECT id, wallet_id, agent_id, policy_id, permission_id, event_type, details, ip_address, user_agent, source, tx_hash, block_number, created_at
 		 FROM audit_logs WHERE wallet_id = $1`
 	args := []interface{}{userID}
 	argIdx := 2
@@ -164,7 +173,7 @@ func (h *Handlers) ExportAuditLogs(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var l AuditLogEntry
 		var detailsBytes []byte
-		if err := rows.Scan(&l.ID, &l.WalletID, &l.AgentID, &l.PolicyID, &l.PermissionID, &l.EventType, &detailsBytes, &l.IPAddress, &l.UserAgent, &l.CreatedAt); err != nil {
+		if err := rows.Scan(&l.ID, &l.WalletID, &l.AgentID, &l.PolicyID, &l.PermissionID, &l.EventType, &detailsBytes, &l.IPAddress, &l.UserAgent, &l.Source, &l.TxHash, &l.BlockNumber, &l.CreatedAt); err != nil {
 			continue
 		}
 		if detailsBytes != nil {
@@ -178,7 +187,7 @@ func (h *Handlers) ExportAuditLogs(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", "attachment; filename=audit_logs.csv")
 
 		writer := csv.NewWriter(w)
-		writer.Write([]string{"id", "wallet_id", "agent_id", "policy_id", "permission_id", "event_type", "details", "ip_address", "user_agent", "created_at"})
+		writer.Write([]string{"id", "wallet_id", "agent_id", "policy_id", "permission_id", "event_type", "details", "ip_address", "user_agent", "source", "tx_hash", "block_number", "created_at"})
 
 		for _, l := range logs {
 			agentID := ""
@@ -201,6 +210,14 @@ func (h *Handlers) ExportAuditLogs(w http.ResponseWriter, r *http.Request) {
 			if l.UserAgent != nil {
 				userAgent = *l.UserAgent
 			}
+			txHash := ""
+			if l.TxHash != nil {
+				txHash = *l.TxHash
+			}
+			blockNumber := ""
+			if l.BlockNumber != nil {
+				blockNumber = strconv.FormatInt(*l.BlockNumber, 10)
+			}
 			detailsStr := ""
 			if l.Details != nil {
 				detailsBytes, _ := json.Marshal(l.Details)
@@ -217,6 +234,9 @@ func (h *Handlers) ExportAuditLogs(w http.ResponseWriter, r *http.Request) {
 				detailsStr,
 				ipAddress,
 				userAgent,
+				l.Source,
+				txHash,
+				blockNumber,
 				l.CreatedAt.Format(time.RFC3339),
 			})
 		}
