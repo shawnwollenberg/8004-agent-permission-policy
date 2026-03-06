@@ -162,7 +162,7 @@ export default function Home() {
           <div className="container mx-auto px-4 py-4 flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Shield className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold">Guardrail</span>
+              <span className="text-xl font-bold">AgentGuardrail</span>
             </div>
             <div className="flex items-center gap-6">
               <nav className="hidden md:flex items-center gap-4">

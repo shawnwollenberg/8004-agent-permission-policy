@@ -25,7 +25,7 @@ export default function AboutPage() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
             <Shield className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">Guardrail</span>
+            <span className="text-xl font-bold">AgentGuardrail</span>
           </Link>
           <nav className="flex items-center gap-4">
             <Link href="/about" className="text-foreground font-medium">
@@ -130,7 +130,7 @@ export default function AboutPage() {
             <div className="max-w-3xl mx-auto text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">The Solution</h2>
               <p className="text-lg text-muted-foreground">
-                Guardrail gives each bot its own wallet with built-in spending guardrails.
+                AgentGuardrail gives each bot its own wallet with built-in spending guardrails.
                 Generate a dedicated keypair, deploy a smart account, and set policies that
                 are enforced on-chain. Your personal wallet never touches the bot.
               </p>
@@ -197,7 +197,7 @@ export default function AboutPage() {
             <div className="max-w-3xl mx-auto text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">How It Works</h2>
               <p className="text-lg text-muted-foreground">
-                Integrate Guardrail into your agent's workflow in minutes.
+                Integrate AgentGuardrail into your agent's workflow in minutes.
               </p>
             </div>
             <div className="max-w-4xl mx-auto">
@@ -263,7 +263,7 @@ else:
                   </div>
                   <h2 className="text-3xl font-bold mb-4">Never Share Your Private Key with a Bot</h2>
                   <p className="text-muted-foreground mb-6">
-                    Guardrail generates a fresh keypair for each bot during agent creation.
+                    AgentGuardrail generates a fresh keypair for each bot during agent creation.
                     The bot gets its own private key and its own smart account — completely
                     isolated from your personal wallet. You control the guardrails, the bot
                     operates within them.
@@ -348,8 +348,8 @@ else:
                   </div>
                   <h2 className="text-3xl font-bold mb-4">Built on ERC-8004</h2>
                   <p className="text-muted-foreground mb-6">
-                    Guardrail implements the ERC-8004 standard for AI agent authorization
-                    with Guardrail Secure Accounts for guaranteed enforcement. Policies are enforced both
+                    AgentGuardrail implements the ERC-8004 standard for AI agent authorization
+                    with AgentGuardrail Secure Accounts for guaranteed enforcement. Policies are enforced both
                     off-chain (API validation) and on-chain (Secure Account transaction gating).
                   </p>
                   <ul className="space-y-3">
@@ -485,7 +485,7 @@ else:
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Monitor external wallets with advisory alerts and reconciliation. Guardrail validates
+                    Monitor external wallets with advisory alerts and reconciliation. AgentGuardrail validates
                     actions via API and logs everything, but cannot prevent on-chain execution.
                   </p>
                   <ul className="space-y-2 text-sm">
@@ -551,7 +551,7 @@ else:
             <div className="max-w-3xl mx-auto text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">Use Cases</h2>
               <p className="text-lg text-muted-foreground">
-                Guardrail is designed for any AI agent that needs to interact with blockchain.
+                AgentGuardrail is designed for any AI agent that needs to interact with blockchain.
               </p>
             </div>
             <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
@@ -623,7 +623,7 @@ else:
 
       <footer className="border-t">
         <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-          <p>Guardrail - Built on ERC-8004 Standard</p>
+          <p>AgentGuardrail - Built on ERC-8004 Standard</p>
         </div>
       </footer>
     </div>

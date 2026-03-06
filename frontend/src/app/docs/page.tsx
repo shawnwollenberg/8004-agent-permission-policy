@@ -30,7 +30,7 @@ export default function DocsPage() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
             <Shield className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">Guardrail</span>
+            <span className="text-xl font-bold">AgentGuardrail</span>
           </Link>
           <nav className="flex items-center gap-4">
             <Link href="/about" className="text-muted-foreground hover:text-foreground">
@@ -51,7 +51,7 @@ export default function DocsPage() {
           <div className="mb-12">
             <h1 className="text-4xl font-bold mb-4">Documentation</h1>
             <p className="text-xl text-muted-foreground">
-              Learn how to use Guardrail to manage permissions for your AI agents.
+              Learn how to use AgentGuardrail to manage permissions for your AI agents.
             </p>
           </div>
 
@@ -73,7 +73,7 @@ export default function DocsPage() {
                     Getting Started
                   </CardTitle>
                   <CardDescription>
-                    Set up Guardrail in 5 minutes
+                    Set up AgentGuardrail in 5 minutes
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -662,7 +662,7 @@ const hash = await client.sendTransaction({
                     Network Information
                   </CardTitle>
                   <CardDescription>
-                    Guardrail contracts are deployed on Base mainnet and Ethereum Sepolia testnet
+                    AgentGuardrail contracts are deployed on Base mainnet and Ethereum Sepolia testnet
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1114,7 +1114,7 @@ if (allowed) {
 
       <footer className="border-t mt-16">
         <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-          <p>Guardrail - Built on ERC-8004 Standard</p>
+          <p>AgentGuardrail - Built on ERC-8004 Standard</p>
         </div>
       </footer>
     </div>

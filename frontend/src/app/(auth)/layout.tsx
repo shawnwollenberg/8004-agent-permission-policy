@@ -64,7 +64,7 @@ export default function AuthLayout({
         <div className="flex h-full flex-col">
           <div className="flex h-16 items-center gap-2 border-b px-6">
             <Shield className="h-6 w-6 text-primary" />
-            <span className="font-bold">Guardrail</span>
+            <span className="font-bold">AgentGuardrail</span>
           </div>
           <nav className="flex-1 space-y-1 p-4">
             {navItems.map((item) => {

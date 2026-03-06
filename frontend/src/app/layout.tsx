@@ -6,7 +6,7 @@ import { Providers } from './providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Guardrail - Smart Account Permissions for AI Agents',
+  title: 'AgentGuardrail - Smart Account Permissions for AI Agents',
   description: 'Create dedicated smart accounts for your AI bots with spending guardrails. Separate bot wallets from personal wallets, set transaction limits, and enforce policies on-chain. Built on ERC-8004 and ERC-4337.',
   keywords: [
     'AI agent smart account',
@@ -23,13 +23,13 @@ export const metadata: Metadata = {
     'autonomous agent wallet',
   ],
   openGraph: {
-    title: 'Guardrail - Smart Account Permissions for AI Agents',
+    title: 'AgentGuardrail - Smart Account Permissions for AI Agents',
     description: 'Create dedicated smart accounts for your AI bots. Separate bot wallets from personal wallets, set transaction limits, and enforce spending policies on-chain.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Guardrail - Smart Account Permissions for AI Agents',
+    title: 'AgentGuardrail - Smart Account Permissions for AI Agents',
     description: 'Create dedicated smart accounts for your AI bots. Separate bot wallets from personal wallets, set transaction limits, and enforce spending policies on-chain.',
   },
   robots: {
