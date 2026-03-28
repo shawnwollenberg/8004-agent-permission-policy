@@ -1,0 +1,1159 @@
+# AgentGuardrail — Full Technical Reference
+
+> Complete contract ABIs, integration patterns, error handling, and encoding details for agents and developers building on AgentGuardrail.
+
+Homepage: https://agentguardrail.xyz
+Quick reference (llms.txt): https://agentguardrail.xyz/llms.txt
+Claude Skill (ClawHub): https://agentguardrail.xyz/skills/guardrail-smart-accounts/SKILL.md
+GitHub: https://github.com/shawnwollenberg/8004-agent-permission-policy
+
+---
+
+## System Architecture
+
+AgentGuardrail is an on-chain policy enforcement layer for ERC-4337 AI agent smart accounts. Every agent gets a dedicated ERC-4337 smart account whose `validateUserOp()` calls `PermissionEnforcer` before any transaction executes. Transactions violating policy constraints revert — there is no bypass.
+
+```
+Agent SDK / Bot Code
+  │
+  ├── POST /api/v1/validate          (off-chain pre-flight, optional)
+  │
+  └── ERC-4337 EntryPoint
+        └── AgentSmartAccount.validateUserOp()
+              ├── ECDSA signature check (owner)
+              └── PermissionEnforcer.validateAction()
+                    ├── PolicyRegistry.isPermissionValid()
+                    ├── Constraint checks (value, volume, actions, tokens, protocols, chains)
+                    └── Returns ValidationResult
+```
+
+---
+
+## Contract Addresses
+
+### Base Mainnet (Chain ID 8453)
+
+| Contract              | Address                                    |
+|-----------------------|--------------------------------------------|
+| IdentityRegistry      | 0xc1fa477f991C74Cc665E605fC74f0e2B795b5104 |
+| PolicyRegistry        | 0x92cd41e6a4aA13072CeBCda8830d48f269F058c4 |
+| PermissionEnforcer    | 0xbF63Fa97cfBba99647B410f205730d63d831061c |
+| PriceOracle           | 0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3 |
+| GuardrailFeeManager   | 0xD1B7Bd65F2aB60ff84CdDF48f306a599b01d293A |
+| AgentAccountFactory   | 0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C |
+| EntryPoint (v0.6)     | 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789 |
+
+### Sepolia Testnet (Chain ID 11155111)
+
+| Contract              | Address                                    |
+|-----------------------|--------------------------------------------|
+| IdentityRegistry      | 0xc1fa477f991C74Cc665E605fC74f0e2B795b5104 |
+| PolicyRegistry        | 0x92cd41e6a4aA13072CeBCda8830d48f269F058c4 |
+| PermissionEnforcer    | 0x94991827135fbd0E681B3db51699e4988a7752f1 |
+| PriceOracle           | 0x052cDddba3C55A63F5e48F9e5bC6b70604Db93b8 |
+| GuardrailFeeManager   | 0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12 |
+| AgentAccountFactory   | 0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E |
+| EntryPoint (v0.6)     | 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789 |
+
+---
+
+## Contract: AgentAccountFactory
+
+Deploys ERC-4337 smart accounts via CREATE2. Every account is bound to `PermissionEnforcer` at deployment.
+
+### State Variables
+
+```solidity
+PermissionEnforcer public immutable enforcer;
+address           public immutable entryPoint;
+GuardrailFeeManager public immutable feeManager;
+```
+
+### Functions
+
+#### createAccount
+```solidity
+function createAccount(
+    address owner,
+    bytes32 agentId,
+    bytes32 salt
+) external payable returns (AgentSmartAccount account)
+```
+- Deploys `AgentSmartAccount` via CREATE2.
+- Idempotent: if already deployed, refunds excess msg.value and returns existing address.
+- Requires `msg.value >= feeManager.getCreationFeeWei()`.
+- Emits `AccountCreated` and `CreationFeePaid`.
+
+#### getAddress
+```solidity
+function getAddress(
+    address owner,
+    bytes32 agentId,
+    bytes32 salt
+) public view returns (address)
+```
+- Computes deterministic account address without deploying.
+- Use to pre-fund an account before deployment.
+
+#### getCreationFee
+```solidity
+function getCreationFee() external view returns (uint256)
+```
+- Returns current creation fee in wei (delegates to `feeManager.getCreationFeeWei()`).
+- Fee is $10 USD equivalent, priced via Chainlink ETH/USD oracle.
+
+### Events
+```solidity
+event AccountCreated(address indexed account, address indexed owner, bytes32 indexed agentId);
+event CreationFeePaid(address indexed account, uint256 fee);
+```
+
+### Errors
+```solidity
+error InsufficientCreationFee(uint256 required, uint256 provided);
+error RefundFailed();
+error FeeTransferFailed();
+```
+
+### Integration Example (viem)
+```typescript
+import { parseEther, encodeAbiParameters, keccak256, toHex } from 'viem'
+
+// 1. Get current fee
+const fee = await publicClient.readContract({
+  address: FACTORY_ADDRESS,
+  abi: agentAccountFactoryABI,
+  functionName: 'getCreationFee',
+})
+
+// 2. Compute address before deploying (useful to pre-fund)
+const salt = keccak256(toHex('my-unique-bot-1'))
+const agentId = keccak256(toHex('agent-uuid-here'))
+const predicted = await publicClient.readContract({
+  address: FACTORY_ADDRESS,
+  abi: agentAccountFactoryABI,
+  functionName: 'getAddress',
+  args: [ownerAddress, agentId, salt],
+})
+
+// 3. Fund predicted address (optional pre-fund)
+await walletClient.sendTransaction({ to: predicted, value: parseEther('0.1') })
+
+// 4. Deploy
+const hash = await walletClient.writeContract({
+  address: FACTORY_ADDRESS,
+  abi: agentAccountFactoryABI,
+  functionName: 'createAccount',
+  args: [ownerAddress, agentId, salt],
+  value: fee,
+})
+```
+
+---
+
+## Contract: AgentSmartAccount
+
+ERC-4337 `IAccount` implementation. Enforces policy on every UserOperation via `PermissionEnforcer`. Deployed by `AgentAccountFactory` — never deploy directly.
+
+### State Variables
+```solidity
+uint256 internal constant SIG_VALIDATION_FAILED = 1;
+address public immutable owner;
+bytes32 public immutable agentId;
+PermissionEnforcer public immutable enforcer;
+address public immutable entryPoint;
+GuardrailFeeManager public immutable feeManager;
+```
+
+### Functions
+
+#### validateUserOp
+```solidity
+function validateUserOp(
+    UserOperation calldata userOp,
+    bytes32 userOpHash,
+    uint256 missingAccountFunds
+) external override returns (uint256 validationData)
+```
+- Called by EntryPoint before execution.
+- Verifies ECDSA signature against `owner`.
+- Calls `enforcer.validateAction(agentId, actionHash, actionData)`.
+- Returns 0 on success, `SIG_VALIDATION_FAILED` (1) on failure.
+- `missingAccountFunds` is pre-paid to EntryPoint if needed.
+
+#### execute
+```solidity
+function execute(
+    address target,
+    uint256 value,
+    bytes calldata data
+) external onlyOwnerOrEntryPoint
+```
+- Executes a single call from the smart account.
+- If `value > 0`, deducts transfer fee via `feeManager.calculateTransferFee(value)`.
+- Fee sent to `feeManager.feeCollector()`, remainder to `target`.
+- Emits `Executed`.
+
+#### executeBatch
+```solidity
+function executeBatch(
+    address[] calldata targets,
+    uint256[] calldata values,
+    bytes[] calldata datas
+) external onlyOwnerOrEntryPoint
+```
+- Executes multiple calls in sequence.
+- Transfer fee applied per sub-call where `value > 0`.
+- Emits `ExecutedBatch`.
+
+#### receive
+```solidity
+receive() external payable
+```
+- Accepts inbound ETH. No fee charged.
+
+### Events
+```solidity
+event Executed(address indexed target, uint256 value, uint256 fee, bytes data);
+event ExecutedBatch(uint256 count, uint256 totalFees);
+event EnforcementResult(bytes32 indexed agentId, bytes32 actionHash, bool allowed);
+```
+
+### Errors
+```solidity
+error NotAuthorized();
+error ExecutionFailed();
+error FeeTransferFailed();
+```
+
+### Modifiers
+```solidity
+modifier onlyOwnerOrEntryPoint()
+```
+
+### Action Hash Encoding
+
+`validateUserOp` derives `actionHash` from the target address and the first 4 bytes of calldata (function selector):
+
+```solidity
+function _getActionHash(address target, bytes4 selector) internal pure returns (bytes32) {
+    return keccak256(abi.encodePacked(target, selector));
+}
+```
+
+Reproduce in TypeScript:
+```typescript
+import { encodeAbiParameters, keccak256, slice } from 'viem'
+
+function getActionHash(target: `0x${string}`, calldata: `0x${string}`): `0x${string}` {
+  const selector = slice(calldata, 0, 4)
+  return keccak256(encodeAbiParameters(
+    [{ type: 'address' }, { type: 'bytes4' }],
+    [target, selector]
+  ))
+}
+```
+
+### actionData Encoding for PermissionEnforcer
+
+`PermissionEnforcer.validateAction()` receives `actionData` extracted from the UserOperation. Two supported formats:
+
+**64-byte format (legacy):** `abi.encode(uint256 value, address token)`
+```typescript
+const actionData = encodeAbiParameters(
+  [{ type: 'uint256' }, { type: 'address' }],
+  [value, tokenAddress]
+)
+```
+
+**128-byte format (full):** `abi.encode(uint256 value, address token, address protocol, uint256 chainId)`
+```typescript
+const actionData = encodeAbiParameters(
+  [{ type: 'uint256' }, { type: 'address' }, { type: 'address' }, { type: 'uint256' }],
+  [value, tokenAddress, protocolAddress, chainId]
+)
+```
+
+Use the 128-byte format for cross-chain or multi-protocol enforcement. Both formats are supported — `PermissionEnforcer` detects length and decodes accordingly.
+
+### Building a UserOperation
+```typescript
+import { createPublicClient, createWalletClient, http, encodeAbiParameters, keccak256 } from 'viem'
+
+const userOp = {
+  sender: smartAccountAddress,
+  nonce: await publicClient.readContract({
+    address: ENTRY_POINT,
+    abi: entryPointABI,
+    functionName: 'getNonce',
+    args: [smartAccountAddress, 0n],
+  }),
+  initCode: '0x',                        // empty after deployment
+  callData: encodeFunctionData({
+    abi: agentSmartAccountABI,
+    functionName: 'execute',
+    args: [targetAddress, value, innerCalldata],
+  }),
+  callGasLimit: 200000n,
+  verificationGasLimit: 150000n,
+  preVerificationGas: 50000n,
+  maxFeePerGas: await publicClient.getGasPrice(),
+  maxPriorityFeePerGas: 1500000000n,
+  paymasterAndData: '0x',
+  signature: '0x',                       // fill after signing
+}
+
+// Sign the UserOp hash
+const userOpHash = await publicClient.readContract({
+  address: ENTRY_POINT,
+  abi: entryPointABI,
+  functionName: 'getUserOpHash',
+  args: [userOp],
+})
+userOp.signature = await walletClient.signMessage({ message: { raw: userOpHash } })
+
+// Submit via bundler or directly to EntryPoint
+await walletClient.writeContract({
+  address: ENTRY_POINT,
+  abi: entryPointABI,
+  functionName: 'handleOps',
+  args: [[userOp], beneficiaryAddress],
+})
+```
+
+---
+
+## Contract: PermissionEnforcer
+
+Validates every agent action against active policy constraints. Called inside `AgentSmartAccount.validateUserOp()`.
+
+### State Variables
+```solidity
+PolicyRegistry public immutable policyRegistry;
+IERC8004IdentityRegistry public immutable identityRegistry;
+PriceOracle public priceOracle;
+address public owner;
+mapping(bytes32 => mapping(bytes32 => UsageTracker)) public agentUsage;
+mapping(bytes32 => Constraints) public permissionConstraints;
+```
+
+### Structs
+
+#### UsageTracker
+```solidity
+struct UsageTracker {
+    uint256 dailyVolume;
+    uint256 lastResetTimestamp;
+    uint256 txCount;
+}
+```
+
+#### Constraints
+```solidity
+struct Constraints {
+    uint256   maxValuePerTx;
+    uint256   maxDailyVolume;
+    uint256   maxTxCount;
+    bytes32[] allowedActions;    // keccak256 action hashes; empty = all allowed
+    address[] allowedTokens;     // empty = all allowed
+    address[] allowedProtocols;  // empty = all allowed
+    uint256[] allowedChains;     // empty = all allowed
+}
+```
+
+### Functions
+
+#### setConstraints (full — 8 params)
+```solidity
+function setConstraints(
+    bytes32   permissionId,
+    uint256   maxValuePerTx,
+    uint256   maxDailyVolume,
+    uint256   maxTxCount,
+    bytes32[] calldata allowedActions,
+    address[] calldata allowedTokens,
+    address[] calldata allowedProtocols,
+    uint256[] calldata allowedChains
+) external
+```
+
+#### setConstraints (compact — 6 params, no protocols/chains)
+```solidity
+function setConstraints(
+    bytes32   permissionId,
+    uint256   maxValuePerTx,
+    uint256   maxDailyVolume,
+    uint256   maxTxCount,
+    bytes32[] calldata allowedActions,
+    address[] calldata allowedTokens
+) external
+```
+
+#### validateAction
+```solidity
+function validateAction(
+    bytes32 agentId,
+    bytes32 actionHash,
+    bytes calldata actionData
+) external override returns (ValidationResult memory result)
+```
+- `actionData` is 64 or 128 bytes (see encoding above).
+- Returns `ValidationResult { valid, validUntil, permissionId }`.
+- Reverts with specific errors on constraint violation.
+
+#### recordUsage
+```solidity
+function recordUsage(bytes32 agentId, bytes32 actionHash, uint256 value) external
+```
+- Records spend and tx count for daily quota tracking.
+- Called automatically inside `validateAction` on success.
+- Daily volume resets when `block.timestamp - lastResetTimestamp >= 86400`.
+
+#### getRemainingQuota
+```solidity
+function getRemainingQuota(
+    bytes32 permissionId,
+    bytes32 agentId,
+    bytes32 actionHash
+) external view returns (uint256 remainingVolume, uint256 remainingTxCount)
+```
+
+#### getUsage
+```solidity
+function getUsage(
+    bytes32 agentId,
+    bytes32 actionHash
+) external view returns (uint256 dailyVolume, uint256 txCount)
+```
+
+#### setPriceOracle
+```solidity
+function setPriceOracle(address _priceOracle) external
+```
+
+### Events
+```solidity
+event ConstraintsSet(bytes32 indexed permissionId);
+event UsageRecorded(bytes32 indexed agentId, bytes32 actionHash, uint256 value);
+event ConstraintViolation(bytes32 indexed agentId, bytes32 permissionId, string reason);
+```
+
+### Errors
+```solidity
+error PermissionNotValid();
+error ConstraintViolated(string reason);
+error ActionNotAllowed();
+error TokenNotAllowed();
+error ProtocolNotAllowed();
+error ChainNotAllowed();
+error ValueExceedsLimit();
+error DailyVolumeExceeded();
+error TxCountExceeded();
+```
+
+### Reading Remaining Quota (viem)
+```typescript
+const [remainingVolume, remainingTxCount] = await publicClient.readContract({
+  address: PERMISSION_ENFORCER,
+  abi: permissionEnforcerABI,
+  functionName: 'getRemainingQuota',
+  args: [permissionId, agentId, actionHash],
+})
+```
+
+---
+
+## Contract: PolicyRegistry
+
+Stores policies and permissions on-chain. Both `PermissionEnforcer` and the backend API delegate to this contract.
+
+### Structs
+
+#### Policy
+```solidity
+struct Policy {
+    bytes32 id;
+    address owner;
+    bytes32 contentHash;   // keccak256 of off-chain policy JSON
+    uint256 version;
+    uint256 createdAt;
+    uint256 updatedAt;
+    bool    active;
+}
+```
+
+#### Permission
+```solidity
+struct Permission {
+    bytes32 id;
+    bytes32 policyId;
+    bytes32 agentId;
+    address grantor;
+    uint256 validFrom;
+    uint256 validUntil;
+    bool    revoked;
+}
+```
+
+### Functions
+
+#### createPolicy
+```solidity
+function createPolicy(bytes32 contentHash) external returns (bytes32 policyId)
+```
+- `contentHash` = `keccak256(abi.encodePacked(policyJSON))`.
+- `policyId` = `keccak256(abi.encodePacked(msg.sender, contentHash, block.timestamp))`.
+
+#### updatePolicy
+```solidity
+function updatePolicy(bytes32 policyId, bytes32 contentHash) external
+```
+- Increments `version`. Only callable by policy owner.
+
+#### deactivatePolicy / reactivatePolicy
+```solidity
+function deactivatePolicy(bytes32 policyId) external
+function reactivatePolicy(bytes32 policyId) external
+```
+
+#### grantPermission
+```solidity
+function grantPermission(
+    bytes32 policyId,
+    bytes32 agentId,
+    uint256 validFrom,
+    uint256 validUntil
+) external returns (bytes32 permissionId)
+```
+- Agent must be registered and active in `IdentityRegistry`.
+- Policy must be active.
+- `permissionId` = `keccak256(abi.encodePacked(policyId, agentId, validFrom, validUntil, msg.sender))`.
+
+#### revokePermission
+```solidity
+function revokePermission(bytes32 permissionId) external
+```
+- Sets `revoked = true`. Constraints in `PermissionEnforcer` stop validating immediately.
+
+#### isPermissionValid
+```solidity
+function isPermissionValid(bytes32 permissionId) external view returns (bool valid)
+```
+- Returns true if: not revoked, `block.timestamp >= validFrom`, `block.timestamp <= validUntil`, policy is active.
+
+#### getAgentPermissions / getOwnerPolicies
+```solidity
+function getAgentPermissions(bytes32 agentId) external view returns (bytes32[] memory)
+function getOwnerPolicies(address owner) external view returns (bytes32[] memory)
+```
+
+#### getPolicy / getPermission
+```solidity
+function getPolicy(bytes32 policyId) external view returns (Policy memory)
+function getPermission(bytes32 permissionId) external view returns (Permission memory)
+```
+
+### Events
+```solidity
+event PolicyCreated(bytes32 indexed policyId, address indexed owner, bytes32 contentHash);
+event PolicyUpdated(bytes32 indexed policyId, bytes32 contentHash, uint256 version);
+event PolicyDeactivated(bytes32 indexed policyId);
+event PolicyReactivated(bytes32 indexed policyId);
+event PermissionGranted(
+    bytes32 indexed permissionId,
+    bytes32 indexed policyId,
+    bytes32 indexed agentId,
+    address grantor,
+    uint256 validFrom,
+    uint256 validUntil
+);
+event PermissionRevoked(bytes32 indexed permissionId);
+```
+
+### Errors
+```solidity
+error PolicyNotFound();
+error PolicyNotActive();
+error NotPolicyOwner();
+error PermissionNotFound();
+error PermissionAlreadyRevoked();
+error AgentNotRegistered();
+error InvalidValidityPeriod();
+```
+
+---
+
+## Contract: IdentityRegistry (ERC-8004)
+
+Implements `IERC8004IdentityRegistry`. Tracks agent identity and ownership on-chain.
+
+### Struct
+
+#### AgentIdentity (from IERC8004)
+```solidity
+struct AgentIdentity {
+    address owner;
+    bytes32 agentId;
+    string  metadata;
+    uint256 registeredAt;
+    bool    active;
+}
+```
+
+### Functions
+
+```solidity
+function registerAgent(bytes32 agentId, string calldata metadata) external
+function deactivateAgent(bytes32 agentId) external
+function reactivateAgent(bytes32 agentId) external
+function transferAgent(bytes32 agentId, address newOwner) external
+function updateMetadata(bytes32 agentId, string calldata metadata) external
+function getAgent(bytes32 agentId) external view returns (AgentIdentity memory)
+function isAgentActive(bytes32 agentId) external view returns (bool)
+function getAgentOwner(bytes32 agentId) external view returns (address)
+function getOwnerAgents(address owner) external view returns (bytes32[] memory)
+```
+
+### Events (from IERC8004)
+```solidity
+event AgentRegistered(bytes32 indexed agentId, address indexed owner, string metadata);
+event AgentDeactivated(bytes32 indexed agentId);
+event AgentReactivated(bytes32 indexed agentId);
+event AgentTransferred(bytes32 indexed agentId, address indexed from, address indexed to);
+```
+
+### Errors
+```solidity
+error AgentAlreadyExists();
+error AgentNotFound();
+error NotAgentOwner();
+error AgentAlreadyActive();
+error AgentAlreadyInactive();
+```
+
+---
+
+## Contract: GuardrailFeeManager
+
+Centralized fee configuration. All `AgentSmartAccount` instances read from this contract at runtime so fee rates can change without redeploying accounts.
+
+### State Variables
+```solidity
+address  public owner;
+address  public pendingOwner;
+address  public feeCollector;
+PriceOracle public priceOracle;
+uint256  public constant MAX_TRANSFER_FEE_BPS = 1000;  // 10% max
+uint256  public creationFeeUsd;    // 6 decimals (10_000000 = $10)
+uint256  public transferFeeBps;    // basis points (10 = 0.10%)
+uint256  public transferFeeCapUsd; // 6 decimals (100_000000 = $100)
+```
+
+### Functions
+
+```solidity
+function getCreationFeeWei() external view returns (uint256)
+function calculateTransferFee(uint256 value) external view returns (uint256)
+function setFeeCollector(address _feeCollector) external onlyOwner
+function setCreationFee(uint256 _creationFeeUsd) external onlyOwner
+function setTransferFee(uint256 _transferFeeBps, uint256 _transferFeeCapUsd) external onlyOwner
+function setPriceOracle(address _priceOracle) external onlyOwner
+function transferOwnership(address _newOwner) external onlyOwner
+function acceptOwnership() external
+```
+
+### Fee Calculation
+```
+creationFeeWei = creationFeeUsd * 1e20 / ethUsdPrice
+                 (creationFeeUsd: 6 decimals, ethUsdPrice: 8 decimals)
+
+transferFee = min(value * transferFeeBps / 10000, usdToWei(transferFeeCapUsd))
+```
+
+### Events
+```solidity
+event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+event FeeCollectorUpdated(address indexed newCollector);
+event CreationFeeUpdated(uint256 newFeeUsd);
+event TransferFeeUpdated(uint256 newBps, uint256 newCapUsd);
+event PriceOracleUpdated(address indexed newOracle);
+```
+
+### Errors
+```solidity
+error NotOwner();
+error NotPendingOwner();
+error ZeroAddress();
+error FeeTooHigh();
+```
+
+---
+
+## Contract: PriceOracle
+
+Chainlink-powered price feeds for ETH/USD and ERC-20 token pricing.
+
+### State Variables
+```solidity
+address          public owner;
+IAggregatorV3    public ethUsdFeed;
+mapping(address => IAggregatorV3) public tokenFeeds;
+uint256 public constant STALENESS_THRESHOLD = 1 hours;
+```
+
+### Functions
+```solidity
+function getEthUsdPrice() external view returns (uint256)
+// Returns 8-decimal ETH/USD price (e.g. 200000000000 = $2000)
+
+function getEthValue(address token, uint256 amount) external view returns (uint256)
+// Converts token amount to ETH equivalent using Chainlink feeds
+
+function setTokenFeed(address token, address feed) external onlyOwner
+function removeTokenFeed(address token) external onlyOwner
+```
+
+### Errors
+```solidity
+error StalePrice();      // Feed not updated within STALENESS_THRESHOLD
+error InvalidPrice();    // Feed returned 0 or negative
+error NoFeedConfigured(address token);
+error NotOwner();
+```
+
+---
+
+## Interface: IERC4337 (UserOperation)
+
+```solidity
+struct UserOperation {
+    address sender;
+    uint256 nonce;
+    bytes   initCode;
+    bytes   callData;
+    uint256 callGasLimit;
+    uint256 verificationGasLimit;
+    uint256 preVerificationGas;
+    uint256 maxFeePerGas;
+    uint256 maxPriorityFeePerGas;
+    bytes   paymasterAndData;
+    bytes   signature;
+}
+
+interface IAccount {
+    function validateUserOp(
+        UserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 missingAccountFunds
+    ) external returns (uint256 validationData);
+}
+
+interface IEntryPoint {
+    function getNonce(address sender, uint192 key) external view returns (uint256 nonce);
+}
+```
+
+---
+
+## Interface: IERC8004
+
+```solidity
+interface IERC8004IdentityRegistry {
+    struct AgentIdentity {
+        address owner;
+        bytes32 agentId;
+        string  metadata;
+        uint256 registeredAt;
+        bool    active;
+    }
+
+    event AgentRegistered(bytes32 indexed agentId, address indexed owner, string metadata);
+    event AgentDeactivated(bytes32 indexed agentId);
+    event AgentReactivated(bytes32 indexed agentId);
+    event AgentTransferred(bytes32 indexed agentId, address indexed from, address indexed to);
+
+    function registerAgent(bytes32 agentId, string calldata metadata) external;
+    function deactivateAgent(bytes32 agentId) external;
+    function reactivateAgent(bytes32 agentId) external;
+    function transferAgent(bytes32 agentId, address newOwner) external;
+    function getAgent(bytes32 agentId) external view returns (AgentIdentity memory);
+    function isAgentActive(bytes32 agentId) external view returns (bool);
+    function getAgentOwner(bytes32 agentId) external view returns (address);
+}
+
+interface IERC8004ValidationRegistry {
+    struct ValidationResult {
+        bool    valid;
+        uint256 validUntil;
+        bytes32 permissionId;
+    }
+
+    event ActionValidated(bytes32 indexed agentId, bytes32 indexed actionHash, bool allowed);
+
+    function validateAction(
+        bytes32 agentId,
+        bytes32 actionHash,
+        bytes calldata actionData
+    ) external returns (ValidationResult memory);
+}
+```
+
+---
+
+## On-Chain Event Indexer
+
+The backend polls contracts every 12 seconds and writes indexed events to `audit_logs` with `source='onchain'`, `tx_hash`, and `block_number`.
+
+| Event | Contract | Description |
+|-------|----------|-------------|
+| `EnforcementResult(agentId, actionHash, allowed)` | AgentSmartAccount | Every validateUserOp result |
+| `ConstraintViolation(agentId, permissionId, reason)` | PermissionEnforcer | Policy constraint breached |
+| `UsageRecorded(agentId, actionHash, value)` | PermissionEnforcer | Spend/volume tracked |
+| `Executed(target, value, fee, data)` | AgentSmartAccount | Transaction executed |
+| `ExecutedBatch(count, totalFees)` | AgentSmartAccount | Batch execution completed |
+| `AccountCreated(account, owner, agentId)` | AgentAccountFactory | New account deployed |
+| `PermissionGranted(permissionId, policyId, agentId, ...)` | PolicyRegistry | Permission issued |
+| `PermissionRevoked(permissionId)` | PolicyRegistry | Permission revoked |
+
+Subscribe directly via `eth_getLogs` or read indexed results via `GET /api/v1/audit?source=onchain`.
+
+---
+
+## REST API Reference
+
+Base URL: `https://agentguardrail.xyz`
+
+### Authentication
+
+```
+X-API-Key: YOUR_API_KEY         # for bots / agent code
+Authorization: Bearer JWT_TOKEN  # for dashboard sessions
+```
+
+### Agents
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/v1/agents | Create agent (smart account only) |
+| GET | /api/v1/agents | List agents |
+| GET | /api/v1/agents/{id} | Get agent |
+| PATCH | /api/v1/agents/{id} | Update agent |
+| DELETE | /api/v1/agents/{id} | Delete agent |
+| POST | /api/v1/agents/{id}/deploy-smart-account | Deploy ERC-4337 account |
+| GET | /api/v1/agents/{id}/smart-account | Get smart account details |
+| POST | /api/v1/agents/{id}/register-onchain | Register in IdentityRegistry |
+| POST | /api/v1/agents/sync | Sync on-chain agents |
+
+**Create agent request body:**
+```json
+{
+  "name": "DeFi Trading Bot",
+  "description": "Autonomous swap executor",
+  "signer_type": "generated"
+}
+```
+
+**Deploy smart account request body:**
+```json
+{
+  "signer_type": "wallet"
+}
+```
+`signer_type`: `"wallet"` (connected wallet is owner) or `"generated"` (client-side keypair).
+
+### Policies
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/v1/policies | Create policy |
+| GET | /api/v1/policies | List policies |
+| GET | /api/v1/policies/{id} | Get policy |
+| PUT | /api/v1/policies/{id} | Update policy |
+| DELETE | /api/v1/policies/{id} | Delete policy (draft only) |
+| POST | /api/v1/policies/{id}/activate | Activate and register on-chain |
+| POST | /api/v1/policies/{id}/revoke | Revoke on-chain |
+| POST | /api/v1/policies/{id}/reactivate | Re-register revoked policy |
+
+**Policy definition schema (full):**
+```json
+{
+  "name": "DeFi Trading Policy",
+  "description": "Allow swaps and transfers with daily limits",
+  "definition": {
+    "actions": ["swap", "transfer", "approve"],
+    "assets": {
+      "tokens": ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"],
+      "protocols": ["*"],
+      "chains": [8453, 11155111]
+    },
+    "constraints": {
+      "maxValuePerTx": "1000000000000000000",
+      "maxDailyVolume": "10000000000000000000",
+      "maxWeeklyVolume": "50000000000000000000",
+      "maxTxCount": 100,
+      "requireApproval": false
+    },
+    "duration": {
+      "validFrom": "2026-01-01T00:00:00Z",
+      "validUntil": "2026-12-31T23:59:59Z"
+    },
+    "conditions": [
+      { "field": "amount", "operator": "lte", "value": "5000000000000000000" }
+    ]
+  }
+}
+```
+
+**Allowed action types:**
+`swap`, `transfer`, `approve`, `stake`, `unstake`, `deposit`, `withdraw`, `mint`, `burn`, `bridge`, `claim`, `vote`, `delegate`, `lp_add`, `lp_remove`, `borrow`, `repay`, `liquidate`, `*` (wildcard)
+
+**Condition operators:**
+`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `contains`, `regex`
+
+### Permissions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/v1/permissions | Grant permission |
+| GET | /api/v1/permissions | List (filter: agent_id, policy_id) |
+| GET | /api/v1/permissions/{id} | Get permission |
+| POST | /api/v1/permissions/{id}/mint | Mint on-chain, sync constraints |
+| DELETE | /api/v1/permissions/{id} | Revoke |
+
+**Grant request body:**
+```json
+{
+  "agent_id": "agent-uuid",
+  "policy_id": "policy-uuid",
+  "valid_from": "2026-01-01T00:00:00Z",
+  "valid_until": "2026-12-31T23:59:59Z"
+}
+```
+
+**Mint response:**
+```json
+{
+  "id": "permission-uuid",
+  "onchain_token_id": "0xabc...",
+  "tx_hash": "0xdef...",
+  "status": "minted"
+}
+```
+
+### Validation
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/v1/validate | Pre-flight check, writes audit record |
+| POST | /api/v1/validate/simulate | Dry-run, no record written |
+| POST | /api/v1/validate/batch | Validate multiple actions |
+
+**Validate request body:**
+```json
+{
+  "agent_id": "agent-uuid",
+  "action": {
+    "type": "swap",
+    "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "protocol": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+    "amount": "500000000000000000",
+    "chain": 8453,
+    "to": "0xDef1C0ded9bec7F1a1670819833240f027b25EfF"
+  }
+}
+```
+
+**Validate response:**
+```json
+{
+  "allowed": true,
+  "permission_id": "...",
+  "policy_id": "...",
+  "constraints": {
+    "maxValuePerTx": "5000000000000000000",
+    "maxDailyVolume": "50000000000000000000"
+  },
+  "enforcement_level": "enforced",
+  "wallet_type": "smart_account",
+  "onchain_enforced": true,
+  "request_id": "..."
+}
+```
+
+**Simulate response (additional fields):**
+```json
+{
+  "would_allow": true,
+  "current_usage": { "dailyVolume": "100000000000000000", "txCount": 3 },
+  "remaining_quota": { "remainingVolume": "9900000000000000000", "remainingTxCount": 97 },
+  "recommendations": []
+}
+```
+
+**Batch request body:**
+```json
+{
+  "actions": [
+    { "agent_id": "...", "action": { "type": "swap", ... } },
+    { "agent_id": "...", "action": { "type": "transfer", ... } }
+  ]
+}
+```
+
+### Audit
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/v1/audit | Query logs |
+| GET | /api/v1/audit/export | Export (JSON or CSV) |
+
+**Query parameters:**
+- `event_type` — filter by type
+- `agent_id` — filter by agent
+- `policy_id` — filter by policy
+- `source` — `onchain` or `offchain`
+- `start_date`, `end_date` — ISO 8601
+- `limit`, `offset` — pagination
+
+**Audit log entry:**
+```json
+{
+  "id": "...",
+  "event_type": "permission.minted",
+  "agent_id": "...",
+  "policy_id": "...",
+  "permission_id": "...",
+  "source": "onchain",
+  "tx_hash": "0xabc...",
+  "block_number": 12345678,
+  "timestamp": "2026-03-28T12:00:00Z",
+  "details": {}
+}
+```
+
+**Audit event types:**
+`policy.created`, `policy.activated`, `policy.revoked`, `policy.reactivated`,
+`permission.created`, `permission.minted`, `permission.revoked`,
+`validation.request`, `validation.denied`,
+`enforcement.result`, `enforcement.violation`,
+`account.created`, `account.deployed`
+
+---
+
+## Complete Integration Walkthrough (TypeScript / viem)
+
+```typescript
+import {
+  createPublicClient, createWalletClient, http,
+  encodeAbiParameters, keccak256, toHex, parseEther,
+  encodeFunctionData
+} from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { base } from 'viem/chains'
+
+const API = 'https://agentguardrail.xyz'
+const API_KEY = process.env.GUARDRAIL_API_KEY!
+
+const publicClient = createPublicClient({ chain: base, transport: http(process.env.RPC_URL!) })
+const ownerAccount = privateKeyToAccount(process.env.OWNER_PRIVATE_KEY as `0x${string}`)
+const walletClient = createWalletClient({ account: ownerAccount, chain: base, transport: http(process.env.RPC_URL!) })
+
+const headers = { 'Content-Type': 'application/json', 'X-API-Key': API_KEY }
+
+// ── Step 1: Register agent ────────────────────────────────────────
+const agentRes = await fetch(`${API}/api/v1/agents`, {
+  method: 'POST', headers,
+  body: JSON.stringify({ name: 'DeFi Bot', signer_type: 'generated' })
+}).then(r => r.json())
+const { id: agentId, smart_account: { address: smartAccountAddress } } = agentRes
+
+// ── Step 2: Create and activate policy ───────────────────────────
+const policy = await fetch(`${API}/api/v1/policies`, {
+  method: 'POST', headers,
+  body: JSON.stringify({
+    name: 'Swap Policy',
+    definition: {
+      actions: ['swap'],
+      assets: { tokens: ['*'], protocols: ['*'], chains: [8453] },
+      constraints: { maxValuePerTx: parseEther('1').toString(), maxDailyVolume: parseEther('10').toString(), maxTxCount: 50 },
+      duration: { validFrom: new Date().toISOString(), validUntil: new Date(Date.now() + 86400000 * 365).toISOString() }
+    }
+  })
+}).then(r => r.json())
+
+await fetch(`${API}/api/v1/policies/${policy.id}/activate`, { method: 'POST', headers })
+
+// ── Step 3: Grant and mint permission ────────────────────────────
+const perm = await fetch(`${API}/api/v1/permissions`, {
+  method: 'POST', headers,
+  body: JSON.stringify({ agent_id: agentId, policy_id: policy.id, valid_from: new Date().toISOString(), valid_until: new Date(Date.now() + 86400000 * 365).toISOString() })
+}).then(r => r.json())
+
+await fetch(`${API}/api/v1/permissions/${perm.id}/mint`, { method: 'POST', headers })
+
+// ── Step 4: Fund the smart account ───────────────────────────────
+await walletClient.sendTransaction({ to: smartAccountAddress, value: parseEther('0.1') })
+
+// ── Step 5: Pre-flight validate ──────────────────────────────────
+const check = await fetch(`${API}/api/v1/validate`, {
+  method: 'POST', headers,
+  body: JSON.stringify({ agent_id: agentId, action: { type: 'swap', token: '0xA0b8...', amount: parseEther('0.5').toString(), chain: 8453 } })
+}).then(r => r.json())
+
+if (!check.allowed) throw new Error(`Blocked: ${check.reason}`)
+
+// ── Step 6: Build and submit UserOperation ───────────────────────
+// (see UserOperation section above for full encoding)
+```
+
+---
+
+## Error Handling Reference
+
+### Contract Errors → HTTP Status
+
+| Contract Error | Likely Cause | Resolution |
+|----------------|-------------|------------|
+| `InsufficientCreationFee` | `msg.value` too low | Call `getCreationFee()` and resend |
+| `PermissionNotValid` | Permission expired or revoked | Re-grant and re-mint permission |
+| `ActionNotAllowed` | Action type not in policy | Update policy to include action |
+| `TokenNotAllowed` | Token not in `allowedTokens` | Add token to policy or use `["*"]` |
+| `ProtocolNotAllowed` | Protocol not in `allowedProtocols` | Add protocol to policy |
+| `ChainNotAllowed` | Chain ID not in `allowedChains` | Add chain to policy |
+| `ValueExceedsLimit` | `value > maxValuePerTx` | Lower tx value or raise policy limit |
+| `DailyVolumeExceeded` | Daily spend cap hit | Wait for daily reset (midnight UTC) or raise limit |
+| `TxCountExceeded` | Transaction count cap hit | Wait for period reset or raise limit |
+| `AgentNotRegistered` | Agent not in IdentityRegistry | Call `registerAgent` or use API `/register-onchain` |
+| `PolicyNotActive` | Policy was deactivated | Reactivate via API or `reactivatePolicy()` |
+
+### API Error Responses
+
+```json
+{ "error": "permission_not_found", "message": "No active permission for this agent" }
+{ "error": "policy_inactive", "message": "Policy must be activated before granting permissions" }
+{ "error": "validation_failed", "allowed": false, "reason": "exceeds maximum transaction value" }
+```
+
+---
+
+## Technology Stack
+
+- **Backend:** Go 1.22, Chi router, PostgreSQL (pgx), zerolog
+- **Frontend:** Next.js 15, React 18, Wagmi, RainbowKit, Tailwind CSS
+- **Contracts:** Solidity 0.8.24, Foundry, ERC-8004 + ERC-4337
+- **Auth:** Sign-In with Ethereum (SIWE) + JWT + API keys
+- **Infrastructure:** Railway (backend) + Vercel (frontend) + Base Mainnet & Sepolia (contracts)
+- **Indexer:** Polls chain every 12s; no-ops in simulated mode (no DEPLOYER_PRIVATE_KEY)
+
+---
+
+## Links
+
+- Homepage: https://agentguardrail.xyz
+- Dashboard: https://agentguardrail.xyz
+- Documentation: https://agentguardrail.xyz/docs
+- About: https://agentguardrail.xyz/about
+- Quick reference (llms.txt): https://agentguardrail.xyz/llms.txt
+- Claude Skill: https://agentguardrail.xyz/skills/guardrail-smart-accounts/SKILL.md
+- GitHub: https://github.com/shawnwollenberg/8004-agent-permission-policy
