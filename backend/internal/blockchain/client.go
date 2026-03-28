@@ -385,6 +385,21 @@ func (c *Client) ReactivatePolicy(ctx context.Context, policyID [32]byte) (strin
 	return receipt.TxHash.Hex(), nil
 }
 
+// IsAgentActiveOnchain returns true if the agent is registered and active in the
+// IdentityRegistry on-chain. Returns false in simulated mode or on any error.
+func (c *Client) IsAgentActiveOnchain(ctx context.Context, agentID [32]byte) bool {
+	if c.simulated || c.identityRegistry == nil {
+		return false
+	}
+	var result []interface{}
+	err := c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &result, "isAgentActive", agentID)
+	if err != nil || len(result) == 0 {
+		return false
+	}
+	active, ok := result[0].(bool)
+	return ok && active
+}
+
 // DiagnoseGrantPermission performs read-only pre-flight checks and returns a
 // human-readable reason if grantPermission would revert. Returns "" if all
 // checks pass. No-ops in simulated mode.

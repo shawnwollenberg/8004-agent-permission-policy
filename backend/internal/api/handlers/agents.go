@@ -256,15 +256,22 @@ func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) 
 
 	bc := h.clientForChain(req.ChainID)
 
-	// Check if already registered on-chain
+	// Check if already registered on-chain — but verify against the chain, not just the DB.
+	// If the DB has a registry ID but the agent isn't actually active on-chain (e.g. was
+	// registered while backend was in simulated mode), allow re-registration.
 	var existingRegistryID *string
 	h.db.QueryRow(r.Context(),
 		`SELECT onchain_registry_id FROM agents WHERE id = $1 AND wallet_id = $2`,
 		agentID, userID,
 	).Scan(&existingRegistryID)
 	if existingRegistryID != nil && *existingRegistryID != "" {
-		respondError(w, http.StatusConflict, "agent is already registered on-chain")
-		return
+		agentIDBytes := blockchain.UUIDToBytes32(agentID.String())
+		if bc.IsAgentActiveOnchain(r.Context(), agentIDBytes) {
+			respondError(w, http.StatusConflict, "agent is already registered on-chain")
+			return
+		}
+		// DB has a stale registry ID from simulated mode — fall through to re-register for real
+		h.logger.Info().Str("agent_id", agentID.String()).Msg("agent has stale onchain_registry_id but is not active on-chain, re-registering")
 	}
 
 	// Register agent on-chain via IdentityRegistry (or simulate)
