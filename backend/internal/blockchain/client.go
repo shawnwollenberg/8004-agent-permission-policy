@@ -228,20 +228,16 @@ func (c *Client) RegisterAgent(ctx context.Context, agentID [32]byte, metadata s
 		return "0x" + hex.EncodeToString(hash[:]), nil
 	}
 
-	// Read current on-chain state before deciding which tx to send
-	var agentInfo []interface{}
-	callErr := c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &agentInfo, "getAgent", agentID)
-	if callErr == nil && len(agentInfo) >= 1 {
-		owner, ownerOk := agentInfo[0].(common.Address)
-		if ownerOk && owner != (common.Address{}) {
-			// Agent already exists on-chain
-			if len(agentInfo) >= 5 {
-				active, activeOk := agentInfo[4].(bool)
-				if activeOk && active {
-					// Already active — nothing to do
-					hash := sha256.Sum256(append([]byte("already-active:"), agentID[:]...))
-					return "0x" + hex.EncodeToString(hash[:]), nil
-				}
+	// Check on-chain state using simple scalar reads (avoids struct ABI decoding)
+	var ownerResult []interface{}
+	if callErr := c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &ownerResult, "getAgentOwner", agentID); callErr == nil && len(ownerResult) >= 1 {
+		owner, ok := ownerResult[0].(common.Address)
+		if ok && owner != (common.Address{}) {
+			// Agent exists — check if active
+			if c.IsAgentActiveOnchain(ctx, agentID) {
+				// Already active — nothing to do
+				hash := sha256.Sum256(append([]byte("already-active:"), agentID[:]...))
+				return "0x" + hex.EncodeToString(hash[:]), nil
 			}
 			// Exists but inactive — reactivate
 			c.logger.Info().Str("agent_id", hex.EncodeToString(agentID[:])).Msg("agent exists on-chain but is inactive, reactivating")
@@ -476,9 +472,9 @@ func (c *Client) DiagnoseGrantPermission(ctx context.Context, policyID [32]byte,
 		active, ok := agentResult[0].(bool)
 		if ok && !active {
 			// Distinguish registered-but-inactive from never-registered
-			var agentInfo []interface{}
-			if infoErr := c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &agentInfo, "getAgent", agentID); infoErr == nil && len(agentInfo) >= 1 {
-				owner, ownerOk := agentInfo[0].(common.Address)
+			var ownerInfo []interface{}
+			if infoErr := c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &ownerInfo, "getAgentOwner", agentID); infoErr == nil && len(ownerInfo) >= 1 {
+				owner, ownerOk := ownerInfo[0].(common.Address)
 				if ownerOk && owner != (common.Address{}) {
 					return "AgentInactive: agent is registered on-chain but deactivated — use Re-register On-chain to reactivate"
 				}
