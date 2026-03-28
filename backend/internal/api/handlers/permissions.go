@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"net/http"
 	"time"
@@ -319,6 +320,18 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 		// The contract requires validUntil > validFrom, so 0 is not valid.
 		validUntilBig = big.NewInt(4102444800) // 2100-01-01 00:00:00 UTC
 	}
+
+	// Log exact parameters sent to the contract for diagnostics
+	h.logger.Info().
+		Str("permission_id", permID.String()).
+		Str("policy_hash_bytes", fmt.Sprintf("0x%x", policyHashBytes)).
+		Str("agent_id_bytes", fmt.Sprintf("0x%x", agentIDBytes)).
+		Str("onchain_hash_raw", *onchainHash).
+		Str("agent_uuid", agentID.String()).
+		Int64("valid_from_unix", validFromBig.Int64()).
+		Int64("valid_until_unix", validUntilBig.Int64()).
+		Bool("simulated", h.chainClients.Primary().IsSimulated()).
+		Msg("attempting on-chain permission mint")
 
 	// Mint on-chain (or simulate)
 	onchainTokenID, txHash, err := h.chainClients.Primary().GrantPermission(r.Context(), policyHashBytes, agentIDBytes, validFromBig, validUntilBig)
