@@ -220,16 +220,25 @@ func (c *Client) ComputeSmartAccountAddress(signerAddress string, agentIDHex str
 }
 
 // RegisterAgent registers an agent in the IdentityRegistry on-chain.
+// If the agent already exists but is inactive, reactivates it instead.
 // Returns the transaction hash.
 func (c *Client) RegisterAgent(ctx context.Context, agentID [32]byte, metadata string) (string, error) {
 	if c.simulated || c.identityRegistry == nil {
-		// Return a realistic-looking tx hash for demo/simulated mode
 		hash := sha256.Sum256(append([]byte("register:"), agentID[:]...))
 		return "0x" + hex.EncodeToString(hash[:]), nil
 	}
 
 	tx, err := c.transact(ctx, c.identityRegistry.BoundContract, "registerAgent", agentID, metadata)
 	if err != nil {
+		if strings.Contains(err.Error(), "AgentAlreadyExists") {
+			// Agent exists — check if inactive and reactivate
+			if !c.IsAgentActiveOnchain(ctx, agentID) {
+				return c.reactivateAgent(ctx, agentID)
+			}
+			// Already active — nothing to do
+			hash := sha256.Sum256(append([]byte("already-active:"), agentID[:]...))
+			return "0x" + hex.EncodeToString(hash[:]), nil
+		}
 		return "", fmt.Errorf("registerAgent tx failed: %w", err)
 	}
 
@@ -238,6 +247,19 @@ func (c *Client) RegisterAgent(ctx context.Context, agentID [32]byte, metadata s
 		return "", err
 	}
 
+	return receipt.TxHash.Hex(), nil
+}
+
+// reactivateAgent calls reactivateAgent on the IdentityRegistry.
+func (c *Client) reactivateAgent(ctx context.Context, agentID [32]byte) (string, error) {
+	tx, err := c.transact(ctx, c.identityRegistry.BoundContract, "reactivateAgent", agentID)
+	if err != nil {
+		return "", fmt.Errorf("reactivateAgent tx failed: %w", err)
+	}
+	receipt, err := c.WaitForTx(ctx, tx)
+	if err != nil {
+		return "", err
+	}
 	return receipt.TxHash.Hex(), nil
 }
 
@@ -440,7 +462,15 @@ func (c *Client) DiagnoseGrantPermission(ctx context.Context, policyID [32]byte,
 	if len(agentResult) >= 1 {
 		active, ok := agentResult[0].(bool)
 		if ok && !active {
-			return "AgentNotRegistered: agent is not registered or not active in IdentityRegistry on-chain"
+			// Distinguish registered-but-inactive from never-registered
+			var agentInfo []interface{}
+			if infoErr := c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &agentInfo, "getAgent", agentID); infoErr == nil && len(agentInfo) >= 1 {
+				owner, ownerOk := agentInfo[0].(common.Address)
+				if ownerOk && owner != (common.Address{}) {
+					return "AgentInactive: agent is registered on-chain but deactivated — use Re-register On-chain to reactivate"
+				}
+			}
+			return "AgentNotRegistered: agent has never been registered in IdentityRegistry on-chain"
 		}
 	}
 

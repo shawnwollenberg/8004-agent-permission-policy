@@ -17,6 +17,8 @@ import (
 
 const identityRegistryABI = `[
 	{"type":"function","name":"registerAgent","inputs":[{"name":"agentId","type":"bytes32"},{"name":"metadata","type":"string"}],"outputs":[],"stateMutability":"nonpayable"},
+	{"type":"function","name":"reactivateAgent","inputs":[{"name":"agentId","type":"bytes32"}],"outputs":[],"stateMutability":"nonpayable"},
+	{"type":"function","name":"deactivateAgent","inputs":[{"name":"agentId","type":"bytes32"}],"outputs":[],"stateMutability":"nonpayable"},
 	{"type":"function","name":"getAgent","inputs":[{"name":"agentId","type":"bytes32"}],"outputs":[{"name":"owner","type":"address"},{"name":"agentId","type":"bytes32"},{"name":"metadata","type":"string"},{"name":"registeredAt","type":"uint256"},{"name":"active","type":"bool"}],"stateMutability":"view"},
 	{"type":"function","name":"isAgentActive","inputs":[{"name":"agentId","type":"bytes32"}],"outputs":[{"name":"","type":"bool"}],"stateMutability":"view"},
 	{"type":"function","name":"getOwnerAgents","inputs":[{"name":"owner","type":"address"}],"outputs":[{"name":"","type":"bytes32[]"}],"stateMutability":"view"}
