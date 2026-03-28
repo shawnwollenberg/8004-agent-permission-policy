@@ -1,7 +1,7 @@
 ---
 name: guardrail-smart-accounts
-description: Create and manage ERC-4337 smart accounts, policies, permissions, and enforcement for AI agents with on-chain spending guardrails.
-version: 1.0.7
+description: Give AI agents on-chain spending guardrails. Deploy ERC-4337 smart accounts with policy-enforced limits — agents cannot move funds beyond what you authorize, enforced at the contract level, not just in software.
+version: 1.1.0
 metadata:
   openclaw:
     requires:
@@ -10,6 +10,10 @@ metadata:
         - GUARDRAIL_RPC_URL
         - GUARDRAIL_SIGNING_MODE
     optionalSecrets:
+      - name: GUARDRAIL_API_URL
+        when: Using dashboard API for policy/permission management
+        sensitive: false
+        description: AgentGuardrail API base URL. Defaults to https://agentguardrail.xyz
       - name: GUARDRAIL_SIGNER_ENDPOINT
         when: GUARDRAIL_SIGNING_MODE is external_signer
         sensitive: true
@@ -19,502 +23,122 @@ metadata:
         sensitive: true
         description: Scoped, revocable auth token for the external signer
       - name: GUARDRAIL_DASHBOARD_API_KEY
-        when: Using dashboard API only
+        when: Using dashboard API for policy/permission management
         sensitive: true
-        description: Dashboard API key for management UI interaction
+        description: API key for AgentGuardrail management API at agentguardrail.xyz
     primaryEnv: GUARDRAIL_RPC_URL
     emoji: "\U0001F6E1"
     homepage: https://agentguardrail.xyz
+    tags:
+      - ai-agents
+      - smart-accounts
+      - erc-4337
+      - defi
+      - guardrails
+      - policy-enforcement
+      - on-chain
+      - spending-limits
+      - permissions
+      - audit
 ---
 
-# Guardrail Smart Accounts Skill
+# AgentGuardrail — On-Chain Spending Guardrails for AI Agents
 
-> Create and manage ERC-4337 smart accounts, policies, permissions, and enforcement for AI agents with on-chain spending guardrails.
+> **Give your AI agents a wallet they can't abuse.** AgentGuardrail deploys ERC-4337 smart accounts with policy-enforced spending limits. Agents cannot move funds beyond what you authorize — enforcement happens at the contract level, not just in software.
+
+**Homepage:** https://agentguardrail.xyz
+
+---
+
+## Why AgentGuardrail?
+
+AI agents need to move money. The problem is trust: how do you let an agent trade, bridge, or pay for compute without risking runaway spending, compromised keys, or unauthorized actions?
+
+AgentGuardrail solves this with:
+
+- **On-chain enforcement** — `AgentSmartAccount.validateUserOp()` calls `PermissionEnforcer` before any transaction executes. Violating transactions revert. There is no override.
+- **Policy-bound accounts** — every smart account is deployed against a policy that defines allowed actions, tokens, protocols, chains, and spend limits.
+- **Non-custodial** — AgentGuardrail never holds your funds. Enforcement is in the contracts you deploy.
+- **Full audit trail** — every intent, validation, and on-chain event is logged with tx hash and block number.
+
+---
 
 ## Overview
 
-The Guardrail Smart Accounts Skill enables agents and humans to create dedicated ERC-4337 smart accounts with built-in spending limits enforced on-chain. Every account is bound to a Guardrail policy at creation.
+Every agent gets an ERC-4337 smart account deployed via `AgentAccountFactory`. The account's `validateUserOp()` enforces your policy through `PermissionEnforcer` before any transaction reaches the blockchain. If the action violates the policy — wrong token, wrong protocol, spend limit exceeded — the UserOperation reverts.
 
-Guardrail never takes custody of funds — all enforcement occurs on-chain via deployed contracts.
+**Execution path:**
+```
+Agent builds UserOperation
+  → AgentSmartAccount.validateUserOp()
+    → PermissionEnforcer.validateAction()
+      → Policy constraints checked on-chain
+  → EntryPoint executes (only if all checks pass)
+```
 
-This skill supports both:
+The AgentGuardrail API at **https://agentguardrail.xyz** provides:
+- A management interface for creating policies and granting permissions
+- Pre-flight validation for simulation and dashboards
+- Aggregated audit logs with on-chain event indexing
 
-- Programmatic agent execution
-- Human-in-the-loop wallet workflows
+Most enforcement operations can be done directly against the contracts without the API. The API is most useful for policy management, pre-flight simulation, and audit log queries.
 
-It is designed as infrastructure: contract-level fees, policy-bound accounts, and non-custodial enforcement.
+---
 
 ## Security & Credential Model (Required)
 
-This skill performs on-chain operations that require:
-
-- JSON-RPC access
-- Transaction signing
+This skill performs on-chain operations that require JSON-RPC access and transaction signing.
 
 **Private keys must never be provided in chat and must never be stored in unconstrained agent memory.**
 
-The skill supports the following secure signing models:
+### Signing Modes
 
-### 1. External Signer (Recommended)
+#### 1. External Signer (Recommended)
 
-- The agent prepares a transaction.
-- The runtime forwards it to a secure signer service (HSM, MPC, hosted signer).
-- The signer enforces scope, rate limits, and allowlists.
-- The agent never sees raw private keys.
+The agent prepares a transaction. The runtime forwards it to a secure signer service (HSM, MPC, hosted signer). The signer enforces scope, rate limits, and allowlists. The agent never sees raw private keys.
 
-### 2. Wallet Connector / User-Approved Signing
+#### 2. Wallet Connector / User-Approved Signing
 
-- Transactions are prepared by the agent.
-- A user wallet (browser, hardware wallet) prompts for approval.
-- Keys remain in the wallet.
+Transactions are prepared by the agent. A user wallet (browser, hardware wallet) prompts for approval. Keys remain in the wallet.
 
-### 3. Scoped Session Keys (Advanced)
+#### 3. Scoped Session Keys (Advanced)
 
-- Session keys must be policy-restricted.
-- Keys must have strict limits (value caps, allowlists).
-- Keys must be short-lived and rotated frequently.
-- Never expose a long-lived owner EOA private key.
+Session keys must be policy-restricted, short-lived, and rotated frequently. Never use a long-lived owner EOA private key as a session key.
 
 ### The Skill Must NOT
 
-- Ask the user to paste private keys or seed phrases.
-- Store private keys in memory, logs, or prompts.
-- Access unrelated environment variables or local files.
-- Request cloud credentials or system-level secrets.
-- Persist secrets beyond runtime execution.
+- Ask users to paste private keys or seed phrases
+- Store private keys in memory, logs, or prompts
+- Access unrelated environment variables or local files
+- Request cloud credentials or system-level secrets
+- Persist secrets beyond runtime execution
 
-If secure signing is not configured, use this skill in **read-only mode** until proper signing is established.
+If secure signing is not configured, operate in **read-only mode** until proper signing is established.
 
-## Required Runtime Configuration
+---
 
-These values must be provided via secure secret storage (not chat):
+## Runtime Configuration
 
-- `GUARDRAIL_CHAIN_ID` — Target chain identifier
-- `GUARDRAIL_RPC_URL` — JSON-RPC endpoint for the target chain (treat as sensitive — hosted RPC URLs often contain API keys)
-- `GUARDRAIL_SIGNING_MODE` — one of: `external_signer`, `wallet_connector`, `session_key`
+Required (via secure secret storage, not chat):
 
-### Conditional Secrets (declared in manifest as optionalSecrets)
+| Variable | Description |
+|----------|-------------|
+| `GUARDRAIL_CHAIN_ID` | Target chain ID (e.g., `8453` for Base, `11155111` for Sepolia) |
+| `GUARDRAIL_RPC_URL` | JSON-RPC endpoint — treat as sensitive, often contains an API key |
+| `GUARDRAIL_SIGNING_MODE` | One of: `external_signer`, `wallet_connector`, `session_key` |
 
-These are only required when using specific signing modes:
+Optional:
 
-- `GUARDRAIL_SIGNER_ENDPOINT` — External signer service URL. Only required when `GUARDRAIL_SIGNING_MODE` is `external_signer`. Not needed for `wallet_connector` or `session_key` modes.
-- `GUARDRAIL_SIGNER_AUTH_TOKEN` — Scoped, revocable authentication token for the external signer. Only required when `GUARDRAIL_SIGNING_MODE` is `external_signer`. Must be stored in secure secret storage, never in chat or logs.
-- `GUARDRAIL_DASHBOARD_API_KEY` — API key for dashboard management UI interaction. Not required for direct contract usage.
+| Variable | Description |
+|----------|-------------|
+| `GUARDRAIL_API_URL` | AgentGuardrail API base. Defaults to `https://agentguardrail.xyz` |
+| `GUARDRAIL_SIGNER_ENDPOINT` | External signer URL — required when `GUARDRAIL_SIGNING_MODE=external_signer` |
+| `GUARDRAIL_SIGNER_AUTH_TOKEN` | Auth token for the external signer — sensitive, store securely |
+| `GUARDRAIL_DASHBOARD_API_KEY` | API key for agentguardrail.xyz management API |
 
-### Signer Token Rotation and Revocation
+The API URL default in all code examples below is `https://agentguardrail.xyz`. Override with `GUARDRAIL_API_URL` if self-hosting.
 
-When using `external_signer` mode:
-
-- `GUARDRAIL_SIGNER_AUTH_TOKEN` should be scoped to the minimum required permissions (allowlists, rate limits, spend caps).
-- Tokens should be short-lived and rotated on a regular schedule.
-- The external signer provider must support immediate token revocation.
-- If a token is compromised, revoke it at the signer provider and rotate to a new token in secure secret storage.
-- Never use long-lived owner EOA private keys as signer tokens.
-
-### Dashboard API Key Usage
-
-`GUARDRAIL_DASHBOARD_API_KEY` provides access to the management dashboard API for registering agents, managing policies, and viewing audit logs. It does not grant signing or fund-transfer capability. Store it in secure secret storage and rotate periodically.
-
-The runtime must validate the chain ID and reject unsupported networks by default.
-
-## Core Capabilities
-
-### 1. Create Smart Account
-
-Deploy a new smart account via the Guardrail factory. The account is bound to a PermissionEnforcer and controlled by a signer (EOA or generated keypair).
-
-- Deterministic deployment via CREATE2 (salt-based)
-- Owner recorded on-chain
-- One-time creation fee: $10 USD equivalent in ETH
-- Policy-bound by default
-
-**Factory Contract:** `AgentAccountFactory`
-**Function:** `createAccount(address owner, bytes32 agentId, bytes32 salt) payable returns (address)`
-
-```solidity
-// Get required creation fee
-uint256 fee = factory.getCreationFee();
-
-// Deploy account (send fee as msg.value)
-address account = factory.createAccount{value: fee}(ownerAddress, agentId, salt);
-```
-
-### 2. Fund Smart Account (Inbound Transfer)
-
-Send ETH to the smart account address.
-
-Inbound transfers are free.
-
-```javascript
-// NOTE: walletClient must be backed by a secure signer integration.
-// Do NOT provide raw private keys to the agent.
-
-await walletClient.sendTransaction({
-  to: smartAccountAddress,
-  value: parseEther("1.0"),
-});
-```
-
-### 3. Withdraw from Smart Account (Outbound Transfer)
-
-Execute a transfer from the smart account.
-
-Outbound transfers are charged a 10 bps (0.10%) fee, capped at $100 USD equivalent per transaction.
-
-**Function:** `execute(address target, uint256 value, bytes data)`
-
-```javascript
-const data = encodeFunctionData({
-  abi: agentSmartAccountABI,
-  functionName: "execute",
-  args: [destinationAddress, parseEther("1.0"), "0x"],
-});
-
-await walletClient.sendTransaction({
-  to: smartAccountAddress,
-  data,
-});
-```
-
-Fee enforcement occurs inside GuardrailFeeManager.
-
-### 4. Read State (Safe / Read-Only)
-
-These functions do not require signing.
-
-```javascript
-// Get account owner
-const owner = await publicClient.readContract({
-  address: smartAccountAddress,
-  abi: agentSmartAccountABI,
-  functionName: "owner",
-});
-
-// Get creation fee
-const fee = await publicClient.readContract({
-  address: factoryAddress,
-  abi: agentAccountFactoryABI,
-  functionName: "getCreationFee",
-});
-
-// Calculate transfer fee
-const transferFee = await publicClient.readContract({
-  address: feeManagerAddress,
-  abi: guardrailFeeManagerABI,
-  functionName: "calculateTransferFee",
-  args: [parseEther("10.0")],
-});
-```
-
-`publicClient` must be a read-only RPC client.
-
-### 5. Policy Management
-
-Create and manage policies that define what actions agents can perform, with constraints on value, volume, and scope.
-
-**Create Policy** — `POST /api/v1/policies`
-
-```javascript
-const response = await fetch(`${API_BASE_URL}/api/v1/policies`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify({
-    name: "DeFi Trading Policy",
-    description: "Allow swaps and transfers with daily limits",
-    definition: {
-      actions: ["swap", "transfer"],
-      assets: {
-        tokens: ["0xA0b8...eB48", "0xdAC1...1eC7"],
-        protocols: ["*"],
-        chains: [1, 8453],
-      },
-      constraints: {
-        maxValuePerTx: "1000000000000000000",
-        maxDailyVolume: "10000000000000000000",
-        maxWeeklyVolume: "50000000000000000000",
-        maxTxCount: 100,
-        requireApproval: false,
-      },
-      duration: {
-        validFrom: "2025-01-01T00:00:00Z",
-        validUntil: "2025-12-31T23:59:59Z",
-      },
-      conditions: [
-        { field: "amount", operator: "lte", value: "5000000000000000000" },
-      ],
-    },
-  }),
-});
-const policy = await response.json();
-```
-
-**PolicyDefinition structure:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `actions` | `string[]` | Allowed action types: `swap`, `transfer`, `approve`, `stake`, `unstake`, `deposit`, `withdraw`, `mint`, `burn`, `bridge`, `claim`, `vote`, `delegate`, `lp_add`, `lp_remove`, `borrow`, `repay`, `liquidate`, `*` (wildcard) |
-| `assets.tokens` | `string[]` | Token contract addresses, or `["*"]` for all |
-| `assets.protocols` | `string[]` | Protocol contract addresses, or `["*"]` for all |
-| `assets.chains` | `number[]` | Allowed chain IDs |
-| `constraints.maxValuePerTx` | `string` | Maximum value per transaction (wei) |
-| `constraints.maxDailyVolume` | `string` | Maximum daily volume (wei) |
-| `constraints.maxWeeklyVolume` | `string` | Maximum weekly volume (wei) |
-| `constraints.maxTxCount` | `number` | Maximum transaction count within the duration |
-| `constraints.requireApproval` | `boolean` | Whether transactions require manual approval |
-| `duration.validFrom` | `string` | ISO 8601 start time |
-| `duration.validUntil` | `string` | ISO 8601 end time |
-| `conditions` | `array` | Advanced rules with `field`, `operator` (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `contains`, `regex`), and `value` |
-
-**Activate Policy** — `POST /api/v1/policies/{id}/activate`
-
-Registers the policy on-chain via PolicyRegistry. Required before granting permissions.
-
-```javascript
-await fetch(`${API_BASE_URL}/api/v1/policies/${policyId}/activate`, {
-  method: "POST",
-  headers: { Authorization: `Bearer ${token}` },
-});
-```
-
-**Update Policy** — `PUT /api/v1/policies/{id}`
-
-Draft policies update directly. Active policies create a new version.
-
-```javascript
-await fetch(`${API_BASE_URL}/api/v1/policies/${policyId}`, {
-  method: "PUT",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify({
-    name: "Updated Policy Name",
-    definition: {
-      actions: ["swap", "transfer", "approve"],
-      constraints: { maxValuePerTx: "2000000000000000000" },
-    },
-  }),
-});
-```
-
-**Revoke Policy** — `POST /api/v1/policies/{id}/revoke`
-
-Deactivates the policy on-chain. Active permissions using this policy will no longer validate.
-
-**Reactivate Policy** — `POST /api/v1/policies/{id}/reactivate`
-
-Re-registers a previously revoked policy on-chain.
-
-**List Policies** — `GET /api/v1/policies`
-
-**Get Policy** — `GET /api/v1/policies/{id}`
-
-**Delete Policy** — `DELETE /api/v1/policies/{id}`
-
-Only draft policies can be deleted. Active or revoked policies must be revoked first.
-
-### 6. Permission Management
-
-Permissions link an agent to a policy, authorizing specific actions for a defined period.
-
-**Grant Permission** — `POST /api/v1/permissions`
-
-The agent must be active and the policy must be activated before granting a permission.
-
-```javascript
-const response = await fetch(`${API_BASE_URL}/api/v1/permissions`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify({
-    agent_id: "agent-uuid",
-    policy_id: "policy-uuid",
-    valid_from: "2025-01-01T00:00:00Z",
-    valid_until: "2025-12-31T23:59:59Z",
-  }),
-});
-const permission = await response.json();
-```
-
-**Mint Permission** — `POST /api/v1/permissions/{id}/mint`
-
-Registers the permission on-chain via `PolicyRegistry.grantPermission()`. For smart account agents, syncs constraints to PermissionEnforcer. Returns `onchain_token_id`.
-
-```javascript
-const minted = await fetch(
-  `${API_BASE_URL}/api/v1/permissions/${permissionId}/mint`,
-  {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-  }
-).then((r) => r.json());
-// minted.onchain_token_id — on-chain token ID
-```
-
-**Revoke Permission** — `DELETE /api/v1/permissions/{id}`
-
-Revokes the permission. Calls `PolicyRegistry.revokePermission()` on-chain if the permission was minted.
-
-**List Permissions** — `GET /api/v1/permissions`
-
-Supports query parameters: `agent_id`, `policy_id`.
-
-```javascript
-const response = await fetch(
-  `${API_BASE_URL}/api/v1/permissions?agent_id=${agentId}`,
-  { headers: { Authorization: `Bearer ${token}` } }
-);
-const permissions = await response.json();
-```
-
-**Get Permission** — `GET /api/v1/permissions/{id}`
-
-### 7. Action Validation
-
-Validate whether an agent is permitted to perform an action. Runs for both advisory (EOA) and enforced (smart account) agents.
-
-**Validate Action** — `POST /api/v1/validate`
-
-```javascript
-const result = await fetch(`${API_BASE_URL}/api/v1/validate`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify({
-    agent_id: "agent-uuid",
-    action: {
-      type: "swap",
-      token: "0xA0b8...eB48",
-      protocol: "0x7a25...3e6F",
-      amount: "500000000000000000",
-      chain: 8453,
-      to: "0xDef1...C0de",
-    },
-  }),
-}).then((r) => r.json());
-// result.allowed — boolean
-// result.reason — explanation if denied
-// result.permission_id — matching permission
-// result.policy_id — matching policy
-// result.constraints — active constraints
-// result.request_id — audit trail reference
-```
-
-For enforced (smart account) agents, validation acts as a pre-flight check before on-chain execution. The on-chain `PermissionEnforcer` performs the final enforcement in `validateUserOp`.
-
-**Simulate Action** — `POST /api/v1/validate/simulate`
-
-Same input as validate, but returns current usage and remaining quota without recording a validation request.
-
-```javascript
-const sim = await fetch(`${API_BASE_URL}/api/v1/validate/simulate`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify({
-    agent_id: "agent-uuid",
-    action: { type: "transfer", amount: "1000000000000000000", chain: 1 },
-  }),
-}).then((r) => r.json());
-// sim.would_allow — boolean
-// sim.reason — explanation
-// sim.matching_policy — policy ID if matched
-// sim.current_usage — current period usage
-// sim.remaining_quota — remaining allowance
-// sim.recommendations — suggested adjustments
-```
-
-**Batch Validate** — `POST /api/v1/validate/batch`
-
-Validate multiple actions in a single request.
-
-### 8. Audit & Monitoring
-
-Query the immutable audit trail for policy, permission, and validation events.
-
-**List Audit Logs** — `GET /api/v1/audit`
-
-Supports query parameters: `event_type`, `agent_id`, `policy_id`, `start_date`, `end_date`, `limit`, `offset`.
-
-```javascript
-const logs = await fetch(
-  `${API_BASE_URL}/api/v1/audit?event_type=policy.activated&start_date=2025-01-01T00:00:00Z`,
-  { headers: { Authorization: `Bearer ${token}` } }
-).then((r) => r.json());
-```
-
-Event types: `policy.created`, `policy.activated`, `policy.revoked`, `permission.created`, `permission.minted`, `permission.revoked`, `validation.request`.
-
-**Export Audit Logs** — `GET /api/v1/audit/export`
-
-Supports `format=json` or `format=csv`, plus `start_date` and `end_date` parameters.
-
-```javascript
-const exportUrl = `${API_BASE_URL}/api/v1/audit/export?format=csv&start_date=2025-01-01`;
-// Download or redirect to this URL
-```
-
-## Enforcement Model
-
-The system supports two enforcement tiers based on agent wallet type:
-
-### Advisory (EOA Agents)
-
-- Off-chain validation via `/api/v1/validate` logs actions and returns allow/deny decisions.
-- The backend **cannot prevent** on-chain execution for EOA wallets.
-- Use validation results for dashboards, alerts, and compliance monitoring.
-- Violations are recorded in audit logs for review.
-
-### Enforced (Smart Account Agents)
-
-- `AgentSmartAccount.validateUserOp()` calls `PermissionEnforcer` on-chain.
-- Transactions that violate policy constraints **revert before execution**.
-- The agent cannot bypass enforcement — it is built into the account's validation logic.
-- Off-chain validation still runs for dashboards, simulation, and pre-flight checks.
-
-### Which Tier Applies?
-
-| Agent Type | Enforcement | On-Chain Prevention | Off-Chain Validation |
-|------------|-------------|--------------------|--------------------|
-| EOA | Advisory | No | Yes |
-| Smart Account | Enforced | Yes | Yes |
-
-Upgrading from EOA to smart account is one-way via `POST /api/v1/agents/{id}/upgrade-to-smart-account`.
-
-## Fee Structure
-
-### Account Creation Fee
-
-- **Amount:** $10 USD equivalent in ETH
-- **When:** One-time, at smart account deployment
-- **Enforced in:** AgentAccountFactory contract
-- **Paid to:** Fee collector address via GuardrailFeeManager
-
-### Transfer Fee (Outbound Only)
-
-- **Rate:** 10 basis points (0.10%)
-- **Cap:** $100 USD equivalent per transaction
-- **When:** On every `execute()` or `executeBatch()` call with `value > 0`
-- **Not charged on:**
-  - Inbound deposits
-  - Zero-value calls
-  - ERC-20 transfers encoded in calldata
-
-| Transfer Amount | Fee | Notes |
-|----------------|-----|-------|
-| $1,000 | $1 | |
-| $10,000 | $10 | |
-| $100,000 | $100 | Cap reached |
-| $2,000,000 | $100 | Cap applies |
+---
 
 ## Smart Contract Addresses
 
@@ -530,7 +154,7 @@ Upgrading from EOA to smart account is one-way via `POST /api/v1/agents/{id}/upg
 | AgentAccountFactory | `0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C` |
 | EntryPoint (v0.6) | `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789` |
 
-### Sepolia (Chain ID 11155111)
+### Sepolia Testnet (Chain ID 11155111)
 
 | Contract | Address |
 |----------|---------|
@@ -542,38 +166,440 @@ Upgrading from EOA to smart account is one-way via `POST /api/v1/agents/{id}/upg
 | AgentAccountFactory | `0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E` |
 | EntryPoint (v0.6) | `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789` |
 
-## Dashboard
+> Start on Sepolia. Move to Base Mainnet when policies are validated.
 
-All API operations documented above are also available via the web dashboard at **https://agentguardrail.xyz/**, which provides a visual interface for managing agents, policies, permissions, and audit logs.
+---
 
-If using dashboard-generated signer keypairs or API keys:
+## Core Capabilities
 
-- Store them in secure secret storage
-- Never paste them into chat
-- Prefer external signer or hardware-backed signing
+### 1. Deploy a Smart Account
+
+Deploy a new ERC-4337 smart account via `AgentAccountFactory`. The account is bound to `PermissionEnforcer` at creation. Deployment is deterministic via CREATE2 — the same owner, agentId, and salt always produce the same address.
+
+**One-time creation fee:** $10 USD equivalent in ETH.
+
+**Direct contract call (recommended):**
+
+```solidity
+// Get required creation fee
+uint256 fee = factory.getCreationFee();
+
+// Deploy account (send fee as msg.value)
+address account = factory.createAccount{value: fee}(
+    ownerAddress,   // Controls the account
+    agentId,        // bytes32 identifier for this agent
+    salt            // bytes32 for CREATE2 determinism
+);
+```
+
+**Via API:**
+
+```javascript
+const apiUrl = process.env.GUARDRAIL_API_URL ?? "https://agentguardrail.xyz";
+
+const response = await fetch(`${apiUrl}/api/v1/agents/${agentId}/deploy-smart-account`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.GUARDRAIL_DASHBOARD_API_KEY}` },
+});
+const { smart_account_address } = await response.json();
+```
+
+The API path is useful when using dashboard-generated bot signers (the dashboard generates the keypair and handles deployment in one step).
+
+---
+
+### 2. Fund a Smart Account
+
+Send ETH directly to the smart account address. Inbound transfers are free — no fee, no contract call needed.
+
+```javascript
+await walletClient.sendTransaction({
+  to: smartAccountAddress,
+  value: parseEther("1.0"),
+});
+```
+
+---
+
+### 3. Execute from a Smart Account
+
+Agent executes a transaction from its smart account. `validateUserOp()` enforces the policy before the transaction reaches the chain — no override exists.
+
+**Outbound transfer fee:** 10 bps (0.10%), capped at $100 USD per transaction.
+
+```javascript
+// Build the UserOperation
+const callData = encodeFunctionData({
+  abi: agentSmartAccountABI,
+  functionName: "execute",
+  args: [destinationAddress, parseEther("1.0"), "0x"],
+});
+
+// Submit via ERC-4337 EntryPoint
+// The EntryPoint calls validateUserOp → PermissionEnforcer before execution
+```
+
+Fee enforcement occurs inside `GuardrailFeeManager`. Fee is deducted from the transaction value automatically.
+
+| Transfer Amount | Fee |
+|----------------|-----|
+| $1,000 | $1.00 |
+| $10,000 | $10.00 |
+| $100,000+ | $100.00 (cap) |
+
+---
+
+### 4. Read Contract State (No Signing Required)
+
+```javascript
+// Get account owner
+const owner = await publicClient.readContract({
+  address: smartAccountAddress,
+  abi: agentSmartAccountABI,
+  functionName: "owner",
+});
+
+// Get smart account creation fee
+const fee = await publicClient.readContract({
+  address: factoryAddress,
+  abi: agentAccountFactoryABI,
+  functionName: "getCreationFee",
+});
+
+// Calculate transfer fee before executing
+const transferFee = await publicClient.readContract({
+  address: feeManagerAddress,
+  abi: guardrailFeeManagerABI,
+  functionName: "calculateTransferFee",
+  args: [parseEther("10.0")],
+});
+
+// Check if a permission is active on-chain
+const isActive = await publicClient.readContract({
+  address: policyRegistryAddress,
+  abi: policyRegistryABI,
+  functionName: "isPermissionActive",
+  args: [agentAddress, permissionId],
+});
+```
+
+---
+
+### 5. Policy Management
+
+Policies define what an agent is allowed to do: which actions, tokens, protocols, chains, and spend limits. Policies are stored on-chain in `PolicyRegistry` and enforced by `PermissionEnforcer`.
+
+**On-chain (direct):**
+
+```solidity
+// Register a policy on-chain
+bytes32 policyId = policyRegistry.registerPolicy(
+    bytes32(policyHash),    // Unique identifier
+    allowedActions,         // bytes32[] action type hashes
+    allowedTokens,          // address[] token contracts
+    allowedProtocols,       // address[] protocol contracts
+    allowedChains,          // uint256[] chain IDs
+    maxValuePerTx,          // uint256 in wei
+    maxDailyVolume,         // uint256 in wei
+    expiresAt               // uint256 unix timestamp
+);
+```
+
+**Via API (recommended for most use cases — handles on-chain registration automatically):**
+
+```javascript
+const apiUrl = process.env.GUARDRAIL_API_URL ?? "https://agentguardrail.xyz";
+const headers = {
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${process.env.GUARDRAIL_DASHBOARD_API_KEY}`,
+};
+
+// Create and activate a policy
+const policy = await fetch(`${apiUrl}/api/v1/policies`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    name: "DeFi Trading Policy",
+    description: "Allow swaps and transfers with daily limits",
+    definition: {
+      actions: ["swap", "transfer"],
+      assets: {
+        tokens: ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"],
+        protocols: ["*"],
+        chains: [1, 8453],
+      },
+      constraints: {
+        maxValuePerTx: "1000000000000000000",   // 1 ETH
+        maxDailyVolume: "10000000000000000000",  // 10 ETH
+        maxTxCount: 100,
+        requireApproval: false,
+      },
+      duration: {
+        validFrom: "2026-01-01T00:00:00Z",
+        validUntil: "2026-12-31T23:59:59Z",
+      },
+    },
+  }),
+}).then((r) => r.json());
+
+// Activate it (registers on-chain via PolicyRegistry)
+await fetch(`${apiUrl}/api/v1/policies/${policy.id}/activate`, {
+  method: "POST",
+  headers,
+});
+```
+
+**PolicyDefinition fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `actions` | `string[]` | `swap`, `transfer`, `approve`, `stake`, `unstake`, `deposit`, `withdraw`, `mint`, `burn`, `bridge`, `claim`, `vote`, `delegate`, `lp_add`, `lp_remove`, `borrow`, `repay`, `liquidate`, `*` |
+| `assets.tokens` | `string[]` | Token contract addresses, or `["*"]` for all |
+| `assets.protocols` | `string[]` | Protocol addresses, or `["*"]` for all |
+| `assets.chains` | `number[]` | Allowed chain IDs |
+| `constraints.maxValuePerTx` | `string` | Max per-tx value in wei |
+| `constraints.maxDailyVolume` | `string` | Max daily volume in wei |
+| `constraints.maxWeeklyVolume` | `string` | Max weekly volume in wei |
+| `constraints.maxTxCount` | `number` | Max transactions within the duration |
+| `duration.validFrom` / `validUntil` | `string` | ISO 8601 |
+| `conditions` | `array` | Advanced rules: `{ field, operator, value }`. Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `contains`, `regex` |
+
+**Other policy operations:**
+
+```javascript
+// Update (draft policies update in place; active policies create a new version)
+await fetch(`${apiUrl}/api/v1/policies/${policyId}`, { method: "PUT", headers, body: JSON.stringify({...}) });
+
+// Revoke (disables on-chain — active permissions using this policy stop validating)
+await fetch(`${apiUrl}/api/v1/policies/${policyId}/revoke`, { method: "POST", headers });
+
+// Reactivate
+await fetch(`${apiUrl}/api/v1/policies/${policyId}/reactivate`, { method: "POST", headers });
+
+// List / Get / Delete (draft only)
+await fetch(`${apiUrl}/api/v1/policies`, { headers });
+await fetch(`${apiUrl}/api/v1/policies/${policyId}`, { headers });
+await fetch(`${apiUrl}/api/v1/policies/${policyId}`, { method: "DELETE", headers });
+```
+
+---
+
+### 6. Permission Management
+
+Permissions link an agent to a policy for a defined period. On-chain, `PolicyRegistry.grantPermission()` registers the link. `PermissionEnforcer` reads active permissions during `validateUserOp`.
+
+**On-chain (direct):**
+
+```solidity
+// Grant permission on-chain
+bytes32 permissionId = policyRegistry.grantPermission(
+    agentAddress,   // The smart account address
+    policyId,       // bytes32 policy identifier
+    validFrom,      // uint256 unix timestamp
+    validUntil      // uint256 unix timestamp
+);
+```
+
+**Revoke on-chain:**
+
+```solidity
+policyRegistry.revokePermission(permissionId);
+```
+
+**Via API (handles on-chain registration + constraint sync to PermissionEnforcer):**
+
+```javascript
+const apiUrl = process.env.GUARDRAIL_API_URL ?? "https://agentguardrail.xyz";
+const headers = {
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${process.env.GUARDRAIL_DASHBOARD_API_KEY}`,
+};
+
+// Grant a permission
+const permission = await fetch(`${apiUrl}/api/v1/permissions`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    agent_id: "agent-uuid",
+    policy_id: "policy-uuid",
+    valid_from: "2026-01-01T00:00:00Z",
+    valid_until: "2026-12-31T23:59:59Z",
+  }),
+}).then((r) => r.json());
+
+// Mint it on-chain (registers in PolicyRegistry, syncs constraints to PermissionEnforcer)
+const minted = await fetch(`${apiUrl}/api/v1/permissions/${permission.id}/mint`, {
+  method: "POST",
+  headers,
+}).then((r) => r.json());
+// minted.onchain_token_id — the on-chain token ID
+
+// Revoke
+await fetch(`${apiUrl}/api/v1/permissions/${permission.id}`, { method: "DELETE", headers });
+
+// List (filter by agent or policy)
+await fetch(`${apiUrl}/api/v1/permissions?agent_id=${agentId}`, { headers });
+```
+
+> Use the API path when you need the `PermissionEnforcer` constraints to sync automatically. The direct contract path is sufficient if you are managing `PermissionEnforcer` constraint updates yourself.
+
+---
+
+### 7. Action Validation
+
+**On-chain enforcement (primary):**
+
+Validation happens automatically inside `AgentSmartAccount.validateUserOp()` via `PermissionEnforcer`. You do not call this directly — it runs as part of every UserOperation. Transactions that violate policy constraints revert before execution.
+
+**Off-chain pre-flight (via API — useful for dashboards, simulation, agent planning):**
+
+```javascript
+const apiUrl = process.env.GUARDRAIL_API_URL ?? "https://agentguardrail.xyz";
+
+// Pre-flight check before building a UserOperation
+const result = await fetch(`${apiUrl}/api/v1/validate`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${process.env.GUARDRAIL_DASHBOARD_API_KEY}`,
+  },
+  body: JSON.stringify({
+    agent_id: "agent-uuid",
+    action: {
+      type: "swap",
+      token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      protocol: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+      amount: "500000000000000000",
+      chain: 8453,
+      to: "0xDef1C0ded9bec7F1a1670819833240f027b25EfF",
+    },
+  }),
+}).then((r) => r.json());
+// result.allowed        — boolean
+// result.reason         — explanation if denied
+// result.permission_id  — matching permission
+// result.policy_id      — matching policy
+// result.constraints    — active constraints
+// result.request_id     — audit trail reference
+```
+
+**Simulate (dry-run, no audit record):**
+
+```javascript
+const sim = await fetch(`${apiUrl}/api/v1/validate/simulate`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GUARDRAIL_DASHBOARD_API_KEY}` },
+  body: JSON.stringify({
+    agent_id: "agent-uuid",
+    action: { type: "transfer", amount: "1000000000000000000", chain: 1 },
+  }),
+}).then((r) => r.json());
+// sim.would_allow       — boolean
+// sim.current_usage     — current period usage
+// sim.remaining_quota   — remaining allowance
+// sim.recommendations   — suggested policy adjustments
+```
+
+**Batch validate:**
+
+```javascript
+// POST /api/v1/validate/batch
+// Body: { actions: [...] }  — same structure as single validate
+```
+
+---
+
+### 8. Audit & Monitoring
+
+**On-chain events (source of truth):**
+
+The AgentGuardrail indexer polls contracts every 12 seconds and writes events to the audit log with `tx_hash` and `block_number`. Events emitted by the contracts:
+
+| Event | Contract | Description |
+|-------|----------|-------------|
+| `EnforcementResult` | PermissionEnforcer | Every validateUserOp result |
+| `ConstraintViolation` | PermissionEnforcer | Policy constraint breached |
+| `UsageRecorded` | PermissionEnforcer | Spend/volume tracked |
+| `Executed` | AgentSmartAccount | Transaction executed |
+| `AccountCreated` | AgentAccountFactory | New smart account deployed |
+
+**Query via API:**
+
+```javascript
+const apiUrl = process.env.GUARDRAIL_API_URL ?? "https://agentguardrail.xyz";
+
+// List audit logs
+const logs = await fetch(
+  `${apiUrl}/api/v1/audit?agent_id=${agentId}&source=onchain&start_date=2026-01-01T00:00:00Z`,
+  { headers: { Authorization: `Bearer ${process.env.GUARDRAIL_DASHBOARD_API_KEY}` } }
+).then((r) => r.json());
+// Each log entry includes: source ('onchain'|'offchain'), tx_hash, block_number, event_type
+
+// Filter by source
+// source=onchain   — events from contract indexer (tx_hash + block_number included)
+// source=offchain  — API validation requests
+
+// Export (JSON or CSV)
+const csvUrl = `${apiUrl}/api/v1/audit/export?format=csv&start_date=2026-01-01T00:00:00Z`;
+```
+
+Event types: `policy.created`, `policy.activated`, `policy.revoked`, `permission.created`, `permission.minted`, `permission.revoked`, `validation.request`.
+
+---
+
+## Enforcement Model
+
+All agents are **ERC-4337 smart accounts with enforced on-chain policy enforcement**. There is no advisory or EOA mode.
+
+`AgentSmartAccount.validateUserOp()` calls `PermissionEnforcer` on every UserOperation. Transactions that violate policy constraints revert before execution. The agent cannot bypass enforcement — it is built into the account's validation logic.
+
+Off-chain validation (`/api/v1/validate`) runs as a pre-flight simulation for dashboards, SDK use, and agent planning. The on-chain `PermissionEnforcer` performs the final, authoritative enforcement.
+
+---
+
+## Recommended Setup Flow
+
+```
+1. Deploy smart account (AgentAccountFactory.createAccount)
+2. Create policy (API) → activate (registers on-chain via PolicyRegistry)
+3. Grant permission (API) → mint (syncs constraints to PermissionEnforcer)
+4. Agent builds UserOperations — enforcement is automatic
+5. Monitor via audit logs or on-chain events
+```
+
+---
 
 ## Autonomy & Safety Guidance
 
-Because this skill can move funds on-chain:
-
-1. Start on Sepolia testnet.
-2. Fund accounts with small amounts initially.
-3. Use strict Guardrail policies.
+1. **Start on Sepolia.** All contract addresses are provided above.
+2. Fund accounts with small amounts while validating policies.
+3. Use strict policies — prefer explicit token/protocol allowlists over wildcards.
 4. Enable autonomous execution only with secure signing configured.
-5. Apply rate limits and allowlists at the signer layer.
+5. Apply rate limits and allowlists at the signer layer as a second line of defense.
+
+---
 
 ## Privacy and Data Handling
 
 - This skill does not store, log, or transmit private keys, seed phrases, or signer tokens.
-- `GUARDRAIL_RPC_URL` may contain an embedded API key (common with hosted RPC providers). Treat it as sensitive.
-- `GUARDRAIL_SIGNER_AUTH_TOKEN` grants signing capability when combined with the signer endpoint. It must be stored in secure secret storage and never exposed in logs, prompts, or chat.
-- On-chain transactions are public by nature. The skill does not add any off-chain data collection beyond what the blockchain records.
-- The skill does not access local files, browser storage, or environment variables beyond those declared in the manifest metadata.
+- `GUARDRAIL_RPC_URL` may contain an embedded API key. Treat it as sensitive.
+- `GUARDRAIL_SIGNER_AUTH_TOKEN` grants signing capability. Store in secure secret storage — never expose in logs, prompts, or chat.
+- On-chain transactions are public by nature. The skill adds no off-chain data collection beyond what the blockchain records.
+- The skill does not access local files, browser storage, or environment variables beyond those declared in the manifest.
+
+---
 
 ## Design Principles
 
-1. **Policy-Bound by Default** — Every account is bound to a Guardrail policy at creation.
-2. **Agent and Human Neutral** — Authority derives from ownership and policy, not caller identity.
-3. **Non-Custodial** — Guardrail never holds funds.
-4. **Infrastructure First** — Fees are enforced at the contract layer. The API cannot bypass protocol economics.
-5. **Least Privilege** — Signing must use scoped, secure integrations.
+1. **Contract-first** — All enforcement is on-chain. The API is a convenience layer, not the authority.
+2. **Policy-bound by default** — Every account is bound to a policy at creation. No account is unconstrained.
+3. **Non-custodial** — AgentGuardrail never holds funds. Enforcement lives in contracts you can verify.
+4. **Least privilege** — Signing must use scoped, secure integrations. Never expose long-lived owner keys.
+5. **Agent and human neutral** — Authority derives from ownership and policy, not caller identity.
+6. **Infrastructure-grade fees** — Fees are enforced at the contract layer. No software bypass exists.
+
+---
+
+## Dashboard
+
+All operations are available via the web dashboard at **https://agentguardrail.xyz** — manage agents, policies, permissions, and audit logs visually. API keys and bot signer keypairs generated by the dashboard should be stored in secure secret storage and never pasted into chat.
