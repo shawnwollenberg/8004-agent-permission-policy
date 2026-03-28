@@ -260,18 +260,17 @@ func (h *Handlers) RegisterAgentOnchain(w http.ResponseWriter, r *http.Request) 
 	// Always attempt — the contract handles AgentAlreadyExists gracefully, and
 	// the DB may have a stale registry ID from a prior simulated-mode run.
 	agentIDBytes := blockchain.UUIDToBytes32(agentID.String())
+	h.logger.Info().
+		Str("agent_id", agentID.String()).
+		Bool("simulated", bc.IsSimulated()).
+		Msg("attempting on-chain agent registration")
 	registryID, err := bc.RegisterAgent(r.Context(), agentIDBytes, agentID.String())
 	if err != nil {
-		// Handle AgentAlreadyExists revert — treat as success
-		if strings.Contains(err.Error(), "AgentAlreadyExists") {
-			h.logger.Info().Str("agent_id", agentID.String()).Msg("agent already registered on-chain, updating local record")
-			registryID = "0x" + agentID.String()
-		} else {
-			h.logger.Error().Err(err).Str("agent_id", agentID.String()).Msg("on-chain registration failed")
-			respondError(w, http.StatusInternalServerError, "on-chain registration failed: "+err.Error())
-			return
-		}
+		h.logger.Error().Err(err).Str("agent_id", agentID.String()).Msg("on-chain registration failed")
+		respondError(w, http.StatusInternalServerError, "on-chain registration failed: "+err.Error())
+		return
 	}
+	h.logger.Info().Str("agent_id", agentID.String()).Str("registry_id", registryID).Msg("on-chain agent registration succeeded")
 
 	var agent Agent
 	err = h.db.QueryRow(r.Context(),
