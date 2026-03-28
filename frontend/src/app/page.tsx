@@ -243,7 +243,7 @@ export default function Home() {
                   </li>
                   <li className="flex gap-3">
                     <span className="text-red-500">•</span>
-                    <span><strong>Integration Fragility:</strong> Different agents, different safety standards—no unified control</span>
+                    <span><strong>Integration Fragility:</strong> Different agents, different safety standards - no unified control</span>
                   </li>
                 </ul>
               </div>
@@ -425,7 +425,7 @@ export default function Home() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground mb-4">
-                    Deploy autonomous trading bots that execute swaps, provide liquidity, or rebalance portfolios—all within predefined spending limits.
+                    Deploy autonomous trading bots that execute swaps, provide liquidity, or rebalance portfolios, all within predefined spending limits.
                   </p>
                   <div className="text-sm font-mono bg-muted p-3 rounded">
                     Max $10K/tx, $100K/day
@@ -550,8 +550,8 @@ export default function Home() {
     ],
     "allowedProtocols": ["uniswap-v3"],
     "constraints": {
-      "maxValuePerTransaction": "5000",
-      "maxDailyVolume": "50000",
+      "maxValuePerTransaction": "2.5",
+      "maxDailyVolume": "25.0",
       "minSlippageProtection": "0.5%"
     },
     "timeWindow": {
@@ -564,8 +564,8 @@ export default function Home() {
               </CardContent>
             </Card>
             <p className="text-center text-muted-foreground max-w-3xl mx-auto mt-6">
-              When this agent tries to execute a $10,001 swap, the smart contract automatically rejects it before it hits Uniswap. 
-              If the agent is compromised, it still can't exceed the limits—they're enforced by the blockchain.
+              When this agent tries to execute a 2.51 ETH swap, the smart contract automatically rejects it before it hits Uniswap.
+              If the agent is compromised, it still can't exceed the limits. They are enforced by the blockchain.
             </p>
           </section>
 
