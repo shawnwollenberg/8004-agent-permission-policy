@@ -26,11 +26,27 @@ export const metadata: Metadata = {
     title: 'AgentGuardrail - Smart Account Permissions for AI Agents',
     description: 'Create dedicated smart accounts for your AI bots. Separate bot wallets from personal wallets, set transaction limits, and enforce spending policies on-chain.',
     type: 'website',
+    url: 'https://agentguardrail.xyz',
+    siteName: 'AgentGuardrail',
+    images: [
+      {
+        url: 'https://agentguardrail.xyz/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'AgentGuardrail - On-chain spending guardrails for AI agents',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'AgentGuardrail - Smart Account Permissions for AI Agents',
     description: 'Create dedicated smart accounts for your AI bots. Separate bot wallets from personal wallets, set transaction limits, and enforce spending policies on-chain.',
+    images: ['https://agentguardrail.xyz/og-image.png'],
+  },
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+    shortcut: '/favicon.ico',
   },
   robots: {
     index: true,
