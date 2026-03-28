@@ -1,18 +1,22 @@
-# Guardrail
+# AgentGuardrail
 
-> Smart account permissions and spending guardrails for AI agents on Ethereum.
+> On-chain spending guardrails for AI agents. Deploy ERC-4337 smart accounts with policy-enforced limits — agents cannot move funds beyond what you authorize, enforced at the contract level, not just in software.
 
-Guardrail lets you create dedicated smart accounts for AI bots — completely separated from your personal wallet — with built-in spending limits enforced on-chain.
+AgentGuardrail lets you create dedicated smart accounts for AI agents — completely separated from your personal wallet — with built-in spending limits enforced on-chain via `PermissionEnforcer`. Even if an agent is compromised, it physically cannot exceed the constraints you set.
 
-## What Guardrail Does
+Homepage: https://agentguardrail.xyz
+Dashboard: https://agentguardrail.xyz
+Docs: https://agentguardrail.xyz/docs
+About: https://agentguardrail.xyz/about
+Claude Skill (ClawHub): https://agentguardrail.xyz/skills/guardrail-smart-accounts/SKILL.md
 
-Guardrail solves the problem of giving AI bots autonomous on-chain access without risking your personal wallet. Instead of sharing your private key with a bot, Guardrail:
+## What AgentGuardrail Does
 
 1. Generates a fresh keypair for each bot (client-side, never stored)
 2. Deploys an ERC-4337 smart account with the generated address as signer
 3. Enforces spending policies on-chain via PermissionEnforcer
 4. Provides a validation API for pre-flight action checks
-5. Logs every action for auditing and compliance
+5. Logs every action for auditing and compliance, including indexed on-chain events
 
 ## Core Concepts
 
@@ -20,25 +24,22 @@ Guardrail solves the problem of giving AI bots autonomous on-chain access withou
 Generate a dedicated keypair for your bot during agent creation. The private key is shown once and never stored on any server. Your personal wallet stays completely separate from the bot's wallet. The bot gets its own smart account that you fund with only what it needs.
 
 ### Smart Accounts (ERC-4337)
-Each bot operates through an ERC-4337 smart account. The smart account calls PermissionEnforcer during validateUserOp — transactions that violate policy revert before execution. This means even if the bot is compromised, it physically cannot exceed the spending limits you set.
+Every agent operates through an ERC-4337 smart account. The smart account calls PermissionEnforcer during `validateUserOp` — transactions that violate policy revert before execution. There is no override.
 
 ### Policies
-Policies define what a bot can do:
-- Actions: swap, transfer, stake, etc.
+Policies define what an agent can do:
+- Actions: swap, transfer, stake, approve, bridge, etc.
 - Assets: specific tokens, protocols, chains
 - Constraints: max value per transaction, daily volume cap, transaction count limit
 - Duration: valid from/until timestamps
 
 ### Permissions
-Permissions link an agent to a policy. When you grant a permission, the agent can perform actions within that policy's rules. Permissions can be minted on-chain as ERC-8004 tokens.
+Permissions link an agent to a policy for a defined period. When you grant and mint a permission, it is registered on-chain in PolicyRegistry and constraints are synced to PermissionEnforcer. Every smart account execution checks active permissions before proceeding.
 
-### Enforcement Tiers
-- Advisory (EOA): Off-chain validation API with monitoring and alerts. Cannot prevent on-chain execution.
-- Enforced (Smart Account): On-chain + off-chain enforcement. Unauthorized transactions revert automatically.
+### Enforcement
+All agents are ERC-4337 smart accounts with enforced on-chain policy enforcement. `AgentSmartAccount.validateUserOp()` calls `PermissionEnforcer` on every UserOperation. Transactions violating policy constraints revert before execution. The validation API (`/api/v1/validate`) runs as a pre-flight simulation for dashboards, SDKs, and agent planning — the on-chain PermissionEnforcer performs the final, authoritative enforcement.
 
 ## Fee Structure
-
-Guardrail operates as protocol-level infrastructure with enforced on-chain fees via the GuardrailFeeManager contract.
 
 ### Account Creation Fee
 - **Amount:** $10 USD equivalent in ETH (one-time)
@@ -68,72 +69,64 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
 - **Purpose:** ERC-8004 agent identity registration
 - **Key functions:**
   - `registerAgent(bytes32 agentId, string metadata)` — Register a new agent
-  - `getAgent(bytes32 agentId) → (address owner, string metadata, bool active, uint256 registeredAt)` — Get agent details
-  - `isAgentActive(bytes32 agentId) → bool` — Check if agent is active
+  - `getAgent(bytes32 agentId) → (address owner, string metadata, bool active, uint256 registeredAt)`
+  - `isAgentActive(bytes32 agentId) → bool`
 
 ### PolicyRegistry
 - **Address:** 0x92cd41e6a4aA13072CeBCda8830d48f269F058c4
 - **Purpose:** On-chain policy and permission storage
 - **Key functions:**
-  - `createPolicy(bytes32 contentHash) → bytes32 policyId` — Create a new policy
-  - `grantPermission(bytes32 policyId, bytes32 agentId, uint256 validFrom, uint256 validUntil) → bytes32 permissionId` — Grant permission
-  - `revokePermission(bytes32 permissionId)` — Revoke a permission
-  - `isPermissionValid(bytes32 permissionId) → bool` — Check if permission is still valid
-  - `getAgentPermissions(bytes32 agentId) → bytes32[]` — Get all permissions for an agent
+  - `createPolicy(bytes32 contentHash) → bytes32 policyId`
+  - `grantPermission(bytes32 policyId, bytes32 agentId, uint256 validFrom, uint256 validUntil) → bytes32 permissionId`
+  - `revokePermission(bytes32 permissionId)`
+  - `isPermissionValid(bytes32 permissionId) → bool`
+  - `getAgentPermissions(bytes32 agentId) → bytes32[]`
 
 ### PermissionEnforcer
 - **Address:** 0xbF63Fa97cfBba99647B410f205730d63d831061c
 - **Purpose:** Action validation with constraints (value limits, volume caps, tx count, token/protocol/chain allowlists)
 - **Key functions:**
-  - `validateAction(bytes32 agentId, bytes32 actionHash, bytes actionData) → ValidationResult` — Validate an action against permissions
-  - `setConstraints(bytes32 permissionId, uint256 maxValuePerTx, uint256 maxDailyVolume, uint256 maxTxCount, bytes32[] allowedActions, address[] allowedTokens, address[] allowedProtocols, uint256[] allowedChains)` — Set permission constraints
-  - `recordUsage(bytes32 agentId, bytes32 actionHash, uint256 value)` — Record usage after action
-  - `getRemainingQuota(bytes32 permissionId, bytes32 agentId, bytes32 actionHash) → (uint256 remainingVolume, uint256 remainingTxCount)` — Check remaining quota
-  - `setPriceOracle(address _priceOracle)` — Set price oracle for cross-token normalization
+  - `validateAction(bytes32 agentId, bytes32 actionHash, bytes actionData) → ValidationResult`
+  - `setConstraints(bytes32 permissionId, uint256 maxValuePerTx, uint256 maxDailyVolume, uint256 maxTxCount, bytes32[] allowedActions, address[] allowedTokens, address[] allowedProtocols, uint256[] allowedChains)`
+  - `recordUsage(bytes32 agentId, bytes32 actionHash, uint256 value)`
+  - `getRemainingQuota(bytes32 permissionId, bytes32 agentId, bytes32 actionHash) → (uint256 remainingVolume, uint256 remainingTxCount)`
 
 ### PriceOracle
 - **Address:** 0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3
-- **Purpose:** Chainlink-powered ETH/USD and token price feeds for USD conversion
+- **Purpose:** Chainlink-powered ETH/USD and token price feeds
 - **Key functions:**
-  - `getEthUsdPrice() → uint256` — Returns ETH/USD price (8 decimals, e.g. 200000000000 = $2000)
-  - `getEthValue(address token, uint256 amount) → uint256` — Convert token amount to ETH equivalent
-  - `setTokenFeed(address token, address feed)` — Configure Chainlink feed for a token
+  - `getEthUsdPrice() → uint256` — Returns ETH/USD price (8 decimals)
+  - `getEthValue(address token, uint256 amount) → uint256`
   - `STALENESS_THRESHOLD` — 1 hour; reverts if price feed is stale
 
 ### GuardrailFeeManager
 - **Address:** 0xD1B7Bd65F2aB60ff84CdDF48f306a599b01d293A
 - **Purpose:** Centralized fee configuration for all accounts and the factory
-- **Why separate contract:** AgentSmartAccount uses immutable state. If fee config were inline, rates would be baked into each account's bytecode and could never change. FeeManager lets all accounts read current config at runtime.
 - **Key functions:**
-  - `getCreationFeeWei() → uint256` — Convert creationFeeUsd to wei using PriceOracle
-  - `calculateTransferFee(uint256 value) → uint256` — Calculate transfer fee in wei (with cap)
-  - `feeCollector() → address` — Treasury address receiving all fees
-  - `creationFeeUsd() → uint256` — Creation fee in 6-decimal USD (10_000000 = $10)
-  - `transferFeeBps() → uint256` — Transfer fee in basis points (10 = 0.10%)
-  - `transferFeeCapUsd() → uint256` — Transfer fee cap in 6-decimal USD (100_000000 = $100)
-  - `setFeeCollector(address)` — Update fee collector (owner only)
-  - `setCreationFee(uint256)` — Update creation fee (owner only)
-  - `setTransferFee(uint256 bps, uint256 capUsd)` — Update transfer fee (owner only)
-  - `setPriceOracle(address)` — Update price oracle (owner only)
+  - `getCreationFeeWei() → uint256`
+  - `calculateTransferFee(uint256 value) → uint256`
+  - `feeCollector() → address`
+  - `creationFeeUsd() → uint256`
+  - `transferFeeBps() → uint256`
+  - `transferFeeCapUsd() → uint256`
 
 ### AgentAccountFactory
 - **Address:** 0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C
-- **Purpose:** CREATE2 factory for deterministic smart account deployment with creation fee
+- **Purpose:** CREATE2 factory for deterministic smart account deployment
 - **Key functions:**
-  - `createAccount(address owner, bytes32 agentId, bytes32 salt) payable → address` — Deploy smart account (requires creation fee as msg.value; idempotent — refunds on duplicate)
-  - `getAddress(address owner, bytes32 agentId, bytes32 salt) → address` — Compute address without deploying
-  - `getCreationFee() → uint256` — Get current creation fee in wei
+  - `createAccount(address owner, bytes32 agentId, bytes32 salt) payable → address`
+  - `getAddress(address owner, bytes32 agentId, bytes32 salt) → address`
+  - `getCreationFee() → uint256`
 
 ### AgentSmartAccount
 - **Purpose:** ERC-4337 IAccount implementation with permission enforcement and transfer fees
 - **Deployed by:** AgentAccountFactory (not directly)
 - **Key functions:**
-  - `execute(address target, uint256 value, bytes data)` — Execute a call (deducts transfer fee on value > 0)
-  - `executeBatch(address[] targets, uint256[] values, bytes[] datas)` — Execute batch (fee per sub-call with value > 0)
-  - `validateUserOp(UserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds) → uint256` — ERC-4337 validation (verifies signature + enforces permissions)
-  - `owner() → address` — Account owner (signer)
-  - `agentId() → bytes32` — Bound agent identifier
-  - `entryPoint() → address` — ERC-4337 EntryPoint address
+  - `execute(address target, uint256 value, bytes data)`
+  - `executeBatch(address[] targets, uint256[] values, bytes[] datas)`
+  - `validateUserOp(UserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds) → uint256`
+  - `owner() → address`
+  - `agentId() → bytes32`
   - `receive()` — Accept inbound ETH (no fee)
 
 ### Contract Interaction Flow
@@ -155,9 +148,7 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
    └── Account.execute(target, value, data)  [if validation passes]
 ```
 
-### Other Contract Details
-- EntryPoint (v0.6): 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
-- Chain ID: 8453 (Base Mainnet)
+EntryPoint (v0.6): 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
 
 ## Smart Contracts (Sepolia Testnet — Chain ID 11155111)
 
@@ -173,42 +164,47 @@ Guardrail operates as protocol-level infrastructure with enforced on-chain fees 
 
 ## API Reference
 
-Base URL: https://your-backend-url
+Base URL: https://agentguardrail.xyz
 
 ### Authentication
-- API Key: `X-API-Key: YOUR_API_KEY` (recommended for bots)
+- API Key: `X-API-Key: YOUR_API_KEY` (recommended for agents and bots)
 - JWT: `Authorization: Bearer YOUR_TOKEN` (for dashboard sessions)
 
 ### Validation
-- `POST /api/v1/validate` — Check if an action is allowed before executing
-- `POST /api/v1/validate/simulate` — Simulate without recording
-- `POST /api/v1/validate/batch` — Validate multiple actions
+- `POST /api/v1/validate` — Pre-flight check before building a UserOperation
+- `POST /api/v1/validate/simulate` — Dry-run, no audit record written
+- `POST /api/v1/validate/batch` — Validate multiple actions in one request
 
 ### Agents
-- `POST /api/v1/agents` — Register an agent (wallet_type: eoa | smart_account)
-- `GET /api/v1/agents` — List agents (includes signer_type: wallet | generated)
+- `POST /api/v1/agents` — Register an agent (smart account only)
+- `GET /api/v1/agents` — List agents
 - `GET /api/v1/agents/{id}` — Get agent details
-- `POST /api/v1/agents/{id}/deploy-smart-account` — Deploy smart account (signer_type: wallet | generated)
+- `PATCH /api/v1/agents/{id}` — Update agent
+- `DELETE /api/v1/agents/{id}` — Delete agent
+- `POST /api/v1/agents/{id}/deploy-smart-account` — Deploy ERC-4337 smart account (signer_type: wallet | generated)
 - `GET /api/v1/agents/{id}/smart-account` — Get smart account details
-- `POST /api/v1/agents/{id}/upgrade-to-smart-account` — Upgrade EOA to smart account (one-way)
-- `POST /api/v1/agents/{id}/register-onchain` — Register on ERC-8004 identity registry
+- `POST /api/v1/agents/{id}/register-onchain` — Register on ERC-8004 IdentityRegistry
+- `POST /api/v1/agents/sync` — Sync on-chain agents
 
 ### Policies
 - `POST /api/v1/policies` — Create policy
 - `GET /api/v1/policies` — List policies
 - `GET /api/v1/policies/{id}` — Get policy details
 - `PUT /api/v1/policies/{id}` — Update policy
-- `POST /api/v1/policies/{id}/activate` — Activate policy
-- `POST /api/v1/policies/{id}/revoke` — Revoke policy
+- `DELETE /api/v1/policies/{id}` — Delete policy (draft only)
+- `POST /api/v1/policies/{id}/activate` — Activate and register on-chain
+- `POST /api/v1/policies/{id}/revoke` — Revoke on-chain
+- `POST /api/v1/policies/{id}/reactivate` — Re-register a revoked policy
 
 ### Permissions
 - `POST /api/v1/permissions` — Grant permission (link agent to policy)
-- `GET /api/v1/permissions` — List permissions
-- `POST /api/v1/permissions/{id}/mint` — Mint permission on-chain
+- `GET /api/v1/permissions` — List permissions (filter by agent_id, policy_id)
+- `GET /api/v1/permissions/{id}` — Get permission details
+- `POST /api/v1/permissions/{id}/mint` — Mint on-chain, sync constraints to PermissionEnforcer
 - `DELETE /api/v1/permissions/{id}` — Revoke permission
 
 ### Audit
-- `GET /api/v1/audit` — Query audit logs (filter by event_type, agent_id, date range)
+- `GET /api/v1/audit` — Query audit logs (filter by event_type, agent_id, source, date range)
 - `GET /api/v1/audit/export` — Export logs as JSON or CSV
 
 ## Validate API Example
@@ -223,8 +219,9 @@ Content-Type: application/json
   "action": {
     "type": "swap",
     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    "amount": "1000",
-    "protocol": "uniswap-v3"
+    "amount": "1000000000000000000",
+    "protocol": "uniswap-v3",
+    "chain": 8453
   }
 }
 
@@ -234,8 +231,8 @@ Response (allowed):
   "permission_id": "...",
   "policy_id": "...",
   "constraints": {
-    "maxValuePerTx": "5000",
-    "maxDailyVolume": "50000"
+    "maxValuePerTx": "5000000000000000000",
+    "maxDailyVolume": "50000000000000000000"
   },
   "enforcement_level": "enforced",
   "wallet_type": "smart_account",
@@ -259,19 +256,31 @@ Response (denied):
   "assets": {
     "tokens": ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"],
     "protocols": ["uniswap-v3"],
-    "chains": [1, 11155111]
+    "chains": [8453, 11155111]
   },
   "constraints": {
-    "maxValuePerTx": "5000",
-    "maxDailyVolume": "50000",
+    "maxValuePerTx": "5000000000000000000",
+    "maxDailyVolume": "50000000000000000000",
     "maxTxCount": 100
   },
   "duration": {
-    "validFrom": "2024-01-01T00:00:00Z",
-    "validUntil": "2024-12-31T23:59:59Z"
+    "validFrom": "2026-01-01T00:00:00Z",
+    "validUntil": "2026-12-31T23:59:59Z"
   }
 }
 ```
+
+## On-Chain Event Indexer
+
+The backend polls contracts every 12 seconds and writes events to audit_logs with tx_hash and block_number (source='onchain'):
+
+| Event | Contract | Description |
+|-------|----------|-------------|
+| EnforcementResult | PermissionEnforcer | Every validateUserOp result |
+| ConstraintViolation | PermissionEnforcer | Policy constraint breached |
+| UsageRecorded | PermissionEnforcer | Spend/volume tracked |
+| Executed | AgentSmartAccount | Transaction executed |
+| AccountCreated | AgentAccountFactory | New smart account deployed |
 
 ## Technology Stack
 
@@ -279,38 +288,40 @@ Response (denied):
 - Frontend: Next.js 15, React 18, Wagmi, RainbowKit, Tailwind CSS
 - Contracts: Solidity 0.8.24, Foundry, ERC-8004 + ERC-4337
 - Auth: Sign-In with Ethereum (SIWE) + JWT + API keys
-- Infrastructure: Railway (backend) + Vercel (frontend) + Base mainnet & Sepolia (contracts)
+- Infrastructure: Railway (backend) + Vercel (frontend) + Base Mainnet & Sepolia (contracts)
 
 ## Integration Quick Start
 
-1. Connect wallet and sign in at the Guardrail dashboard
-2. Register an agent with "Secure Account" + "Generate Bot Signer"
-3. Click "Generate Key" then "Register Agent"
-4. Download the .env file from the private key reveal dialog
-5. Create a policy with spending limits and activate it
-6. Grant permission linking the agent to the policy
+1. Connect wallet and sign in at https://agentguardrail.xyz
+2. Create an agent with "Generate Bot Signer" — a fresh keypair is created client-side
+3. Download the .env file from the private key reveal dialog (shown once, never stored)
+4. Deploy the smart account — one-time $10 creation fee charged on-chain
+5. Create a policy with spending limits and activate it (registers on PolicyRegistry)
+6. Grant a permission linking the agent to the policy, then mint it on-chain
 7. Create an API key in Settings
-8. Use the validate API in your bot's code before each on-chain action
+8. Use the validate API as pre-flight in your agent's code before each on-chain action
 
 ## Funding a Smart Account
 
-Send ETH to the smart account address from any wallet. The smart account accepts ETH from any source. Copy the address from the agent card in the dashboard and send ETH via MetaMask or any wallet. No fee is charged on inbound deposits.
+Send ETH directly to the smart account address from any wallet. No fee on inbound deposits.
 
 ## Withdrawing from a Smart Account
 
-Withdrawal method depends on signer type. A transfer fee of 10 bps (0.10%), capped at $100 USD, is deducted from outbound ETH transfers.
+A transfer fee of 10 bps (0.10%), capped at $100 USD, is deducted from outbound ETH transfers.
 
-### Wallet Signer (Connected Wallet)
-Your MetaMask wallet is the smart account owner. Use the Withdraw button in the agent card dropdown menu. The transaction is signed by MetaMask directly.
+### Wallet Signer
+Your connected wallet is the smart account owner. Use the Withdraw button in the dashboard agent card.
 
 ### Generated Bot Signer
 The bot's private key is the smart account owner. Two options:
-1. **Dashboard withdrawal:** Click Withdraw in the agent card menu, paste the bot's private key from your .env file. The key signs the transaction client-side in your browser — it is never sent to any server. The key is validated against the bot's signer address and cleared from memory after use.
-2. **Bot-initiated withdrawal:** The bot calls `execute(destinationAddress, amount, "0x")` on its smart account contract using its private key.
+1. **Dashboard withdrawal:** Click Withdraw in the agent card, paste the bot's private key from your .env. The key signs client-side — never sent to any server.
+2. **Bot-initiated withdrawal:** The bot calls `execute(destinationAddress, amount, "0x")` on its smart account using its private key.
 
 ## Links
 
-- Dashboard: /
-- Documentation: /docs
-- About: /about
-- Skills: /skills/guardrail-smart-accounts.md
+- Homepage: https://agentguardrail.xyz
+- Dashboard: https://agentguardrail.xyz
+- Documentation: https://agentguardrail.xyz/docs
+- About: https://agentguardrail.xyz/about
+- Claude Skill: https://agentguardrail.xyz/skills/guardrail-smart-accounts/SKILL.md
+- GitHub: https://github.com/shawnwollenberg/8004-agent-permission-policy
