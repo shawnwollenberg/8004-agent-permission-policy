@@ -220,7 +220,7 @@ func (c *Client) ComputeSmartAccountAddress(signerAddress string, agentIDHex str
 }
 
 // RegisterAgent registers an agent in the IdentityRegistry on-chain.
-// If the agent already exists but is inactive, reactivates it instead.
+// Reads chain state first: if agent exists but is inactive, reactivates it.
 // Returns the transaction hash.
 func (c *Client) RegisterAgent(ctx context.Context, agentID [32]byte, metadata string) (string, error) {
 	if c.simulated || c.identityRegistry == nil {
@@ -228,17 +228,30 @@ func (c *Client) RegisterAgent(ctx context.Context, agentID [32]byte, metadata s
 		return "0x" + hex.EncodeToString(hash[:]), nil
 	}
 
+	// Read current on-chain state before deciding which tx to send
+	var agentInfo []interface{}
+	callErr := c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &agentInfo, "getAgent", agentID)
+	if callErr == nil && len(agentInfo) >= 1 {
+		owner, ownerOk := agentInfo[0].(common.Address)
+		if ownerOk && owner != (common.Address{}) {
+			// Agent already exists on-chain
+			if len(agentInfo) >= 5 {
+				active, activeOk := agentInfo[4].(bool)
+				if activeOk && active {
+					// Already active — nothing to do
+					hash := sha256.Sum256(append([]byte("already-active:"), agentID[:]...))
+					return "0x" + hex.EncodeToString(hash[:]), nil
+				}
+			}
+			// Exists but inactive — reactivate
+			c.logger.Info().Str("agent_id", hex.EncodeToString(agentID[:])).Msg("agent exists on-chain but is inactive, reactivating")
+			return c.reactivateAgent(ctx, agentID)
+		}
+	}
+
+	// Agent does not exist — register fresh
 	tx, err := c.transact(ctx, c.identityRegistry.BoundContract, "registerAgent", agentID, metadata)
 	if err != nil {
-		if strings.Contains(err.Error(), "AgentAlreadyExists") {
-			// Agent exists — check if inactive and reactivate
-			if !c.IsAgentActiveOnchain(ctx, agentID) {
-				return c.reactivateAgent(ctx, agentID)
-			}
-			// Already active — nothing to do
-			hash := sha256.Sum256(append([]byte("already-active:"), agentID[:]...))
-			return "0x" + hex.EncodeToString(hash[:]), nil
-		}
 		return "", fmt.Errorf("registerAgent tx failed: %w", err)
 	}
 
