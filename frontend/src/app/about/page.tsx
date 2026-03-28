@@ -465,80 +465,66 @@ else:
           </div>
         </section>
 
-        {/* Enforcement Tiers */}
+        {/* Enforcement Model */}
         <section className="bg-muted/50 py-20">
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4">Two Enforcement Tiers</h2>
+              <h2 className="text-3xl font-bold mb-4">Guaranteed On-Chain Enforcement</h2>
               <p className="text-lg text-muted-foreground">
-                Choose the right level of enforcement for your agents. Start with advisory
-                monitoring and upgrade to guaranteed on-chain enforcement when ready.
+                Every agent runs through an ERC-4337 smart account. There is no advisory mode —
+                policy enforcement is always on, always on-chain.
               </p>
             </div>
-            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-              <Card className="bg-background border-2 border-amber-500/30">
-                <CardHeader>
-                  <div className="flex items-center gap-3 mb-2">
-                    <Shield className="h-8 w-8 text-amber-500" />
-                    <CardTitle>Advisory Mode</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Monitor external wallets with advisory alerts and reconciliation. AgentGuardrail validates
-                    actions via API and logs everything, but cannot prevent on-chain execution.
-                  </p>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      Off-chain validation API
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      Monitoring and alerts
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      Full audit trail
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      Quick setup — no smart contract needed
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
-
+            <div className="max-w-4xl mx-auto">
               <Card className="bg-background border-2 border-emerald-500/30">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
                     <Lock className="h-8 w-8 text-emerald-500" />
-                    <CardTitle>Enforced Mode</CardTitle>
+                    <CardTitle>On-Chain Enforcement — Always</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Agent operates through a Guardrail Secure Account. Once assets are in a
-                    Secure Account, unauthorized transactions cannot execute.
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Every agent operates through a Guardrail Smart Account. <code className="bg-muted px-1 rounded">validateUserOp()</code> calls <code className="bg-muted px-1 rounded">PermissionEnforcer</code> before any transaction reaches the chain. Violating transactions revert — there is no bypass, no override, no exception.
                   </p>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      On-chain + off-chain enforcement
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      Violating transactions revert automatically
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      Protocol and chain constraints
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      Upgrade from advisory — one-way for security
-                    </li>
-                  </ul>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ul className="space-y-2 text-sm">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        On-chain + off-chain enforcement (double layer)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        Violating transactions revert automatically
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        Per-transaction value limits
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        Daily volume caps
+                      </li>
+                    </ul>
+                    <ul className="space-y-2 text-sm">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        Token and protocol allowlists
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        Chain restrictions
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        Transaction count limits
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        Time-bounded permissions
+                      </li>
+                    </ul>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -601,7 +587,8 @@ else:
             <div className="max-w-2xl mx-auto">
               <h2 className="text-3xl font-bold mb-4">Ready to Secure Your Agents?</h2>
               <p className="text-lg text-muted-foreground mb-8">
-                Start managing permissions for your AI agents today. It's free to get started.
+                Deploy on Base mainnet or Sepolia testnet. One-time $10 account creation fee.
+                No monthly costs — you only pay a 0.10% fee on outbound transfers, capped at $100/tx.
               </p>
               <div className="flex gap-4 justify-center">
                 <Link href="/">

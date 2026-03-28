@@ -662,7 +662,7 @@ const hash = await client.sendTransaction({
                     Network Information
                   </CardTitle>
                   <CardDescription>
-                    AgentGuardrail contracts are deployed on Base mainnet and Ethereum Sepolia testnet
+                    AgentGuardrail contracts are deployed on Base mainnet and Sepolia testnet
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

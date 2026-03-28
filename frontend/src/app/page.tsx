@@ -38,8 +38,8 @@ const schemaMarkup = {
       'offers': {
         '@type': 'Offer',
         'priceCurrency': 'USD',
-        'price': '0',
-        'pricingModel': 'Free'
+        'price': '10',
+        'pricingModel': 'Usage-based — $10 one-time account creation fee, 0.10% transfer fee (capped at $100/tx)'
       },
       'featureList': [
         'ERC-4337 smart account deployment',
@@ -655,7 +655,7 @@ export default function Home() {
                 <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary text-primary-foreground font-bold flex-shrink-0">3</div>
                 <div>
                   <h3 className="font-semibold mb-2">Deploy a Smart Account</h3>
-                  <p className="text-muted-foreground">Choose your chain (Ethereum, Sepolia, etc.) and deploy the ERC-4337 account.</p>
+                  <p className="text-muted-foreground">Deploy on Base mainnet or Sepolia testnet. A one-time $10 creation fee is charged at deployment.</p>
                 </div>
               </div>
 
@@ -748,7 +748,7 @@ export default function Home() {
                   <CardTitle className="text-lg">What networks do you support?</CardTitle>
                 </CardHeader>
                 <CardContent className="text-muted-foreground">
-                  Currently Ethereum mainnet and Sepolia testnet. We support any EVM-compatible chain. More chains coming soon.
+                  Currently Base mainnet (Chain ID 8453) and Sepolia testnet. More EVM-compatible chains coming soon.
                 </CardContent>
               </Card>
 
@@ -757,7 +757,7 @@ export default function Home() {
                   <CardTitle className="text-lg">How much does it cost?</CardTitle>
                 </CardHeader>
                 <CardContent className="text-muted-foreground">
-                  AgentGuardrail is free. You only pay gas fees for smart account deployment ($50–200 on mainnet) and gas for your agent's transactions.
+                  Smart account deployment has a one-time $10 USD fee (paid in ETH at deployment). Outbound transfers are charged 10 basis points (0.10%), capped at $100 per transaction. Inbound deposits, policy management, and validation API calls are free.
                 </CardContent>
               </Card>
             </div>
