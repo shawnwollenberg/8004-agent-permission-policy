@@ -311,9 +311,13 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 
 	agentIDBytes := blockchain.UUIDToBytes32(agentID.String())
 	validFromBig := big.NewInt(validFrom.Unix())
-	validUntilBig := big.NewInt(0) // 0 = no expiry
+	var validUntilBig *big.Int
 	if validUntil != nil {
 		validUntilBig = big.NewInt(validUntil.Unix())
+	} else {
+		// No expiry set — use year 2100 as a practical "indefinite" value.
+		// The contract requires validUntil > validFrom, so 0 is not valid.
+		validUntilBig = big.NewInt(4102444800) // 2100-01-01 00:00:00 UTC
 	}
 
 	// Mint on-chain (or simulate)
