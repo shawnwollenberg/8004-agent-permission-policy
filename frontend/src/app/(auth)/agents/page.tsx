@@ -811,17 +811,15 @@ export default function AgentsPage() {
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Portal>
                     <DropdownMenu.Content className="min-w-[200px] rounded-md bg-popover p-1 shadow-md">
-                      {!agent.onchain_registry_id && (
-                        <DropdownMenu.Item
-                          className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
-                          onClick={() =>
-                            registerOnchainMutation.mutate(agent.id)
-                          }
-                        >
-                          <LinkIcon className="h-4 w-4" />
-                          Register On-chain
-                        </DropdownMenu.Item>
-                      )}
+                      <DropdownMenu.Item
+                        className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
+                        onClick={() =>
+                          registerOnchainMutation.mutate(agent.id)
+                        }
+                      >
+                        <LinkIcon className="h-4 w-4" />
+                        {agent.onchain_registry_id ? 'Re-register On-chain' : 'Register On-chain'}
+                      </DropdownMenu.Item>
                       {!agent.smart_account_address && (
                         <DropdownMenu.Item
                           className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
