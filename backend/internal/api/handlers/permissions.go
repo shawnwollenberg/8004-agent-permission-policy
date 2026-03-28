@@ -333,6 +333,13 @@ func (h *Handlers) MintPermission(w http.ResponseWriter, r *http.Request) {
 		Bool("simulated", h.chainClients.Primary().IsSimulated()).
 		Msg("attempting on-chain permission mint")
 
+	// Pre-flight diagnosis: identify exactly which contract check would fail
+	if reason := h.chainClients.Primary().DiagnoseGrantPermission(r.Context(), policyHashBytes, agentIDBytes); reason != "" {
+		h.logger.Error().Str("permission_id", permID.String()).Str("reason", reason).Msg("mint pre-flight check failed")
+		respondError(w, http.StatusBadRequest, "cannot mint: "+reason)
+		return
+	}
+
 	// Mint on-chain (or simulate)
 	onchainTokenID, txHash, err := h.chainClients.Primary().GrantPermission(r.Context(), policyHashBytes, agentIDBytes, validFromBig, validUntilBig)
 	if err != nil {

@@ -385,6 +385,53 @@ func (c *Client) ReactivatePolicy(ctx context.Context, policyID [32]byte) (strin
 	return receipt.TxHash.Hex(), nil
 }
 
+// DiagnoseGrantPermission performs read-only pre-flight checks and returns a
+// human-readable reason if grantPermission would revert. Returns "" if all
+// checks pass. No-ops in simulated mode.
+func (c *Client) DiagnoseGrantPermission(ctx context.Context, policyID [32]byte, agentID [32]byte) string {
+	if c.simulated || c.policyRegistry == nil || c.identityRegistry == nil {
+		return ""
+	}
+
+	// Check policy exists and is active
+	var policyResult []interface{}
+	err := c.policyRegistry.Call(&bind.CallOpts{Context: ctx}, &policyResult, "getPolicy", policyID)
+	if err != nil {
+		return fmt.Sprintf("getPolicy call failed: %v", err)
+	}
+	if len(policyResult) >= 2 {
+		owner, ok := policyResult[1].(common.Address)
+		if !ok || owner == (common.Address{}) {
+			return "PolicyNotFound: policy does not exist on-chain (was it activated in simulated mode?)"
+		}
+		if len(policyResult) >= 7 {
+			active, ok := policyResult[6].(bool)
+			if ok && !active {
+				return "PolicyNotActive: policy exists but is deactivated on-chain"
+			}
+		}
+		// Check owner matches signer
+		if c.signer != nil && c.signer.From != (common.Address{}) && owner != c.signer.From {
+			return fmt.Sprintf("NotPolicyOwner: policy owner is %s but signer is %s", owner.Hex(), c.signer.From.Hex())
+		}
+	}
+
+	// Check agent is registered and active
+	var agentResult []interface{}
+	err = c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &agentResult, "isAgentActive", agentID)
+	if err != nil {
+		return fmt.Sprintf("isAgentActive call failed: %v", err)
+	}
+	if len(agentResult) >= 1 {
+		active, ok := agentResult[0].(bool)
+		if ok && !active {
+			return "AgentNotRegistered: agent is not registered or not active in IdentityRegistry on-chain"
+		}
+	}
+
+	return ""
+}
+
 // GrantPermission registers a permission on-chain in the PolicyRegistry.
 // Returns the on-chain permission ID (bytes32) as hex string and the tx hash.
 func (c *Client) GrantPermission(ctx context.Context, policyHash [32]byte, agentID [32]byte, validFrom, validUntil *big.Int) (string, string, error) {
