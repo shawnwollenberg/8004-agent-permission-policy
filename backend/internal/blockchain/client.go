@@ -642,28 +642,25 @@ func (c *Client) GetOwnerAgents(ctx context.Context, ownerAddress string) ([][32
 }
 
 // GetAgentOnchain reads an agent's details from the IdentityRegistry contract.
+// Uses getAgentOwner + isAgentActive (plain return types that decode reliably).
+// metadata and registeredAt are not available via these calls and return zero values.
 func (c *Client) GetAgentOnchain(ctx context.Context, agentID [32]byte) (owner common.Address, metadata string, active bool, registeredAt *big.Int, err error) {
 	if c.simulated || c.identityRegistry == nil {
 		return common.Address{}, "", false, big.NewInt(0), nil
 	}
 
-	var result []interface{}
-	err = c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &result, "getAgent", agentID)
-	if err != nil {
-		return common.Address{}, "", false, nil, fmt.Errorf("identityRegistry.getAgent failed: %w", err)
+	var ownerResult []interface{}
+	if callErr := c.identityRegistry.Call(&bind.CallOpts{Context: ctx}, &ownerResult, "getAgentOwner", agentID); callErr != nil {
+		return common.Address{}, "", false, nil, fmt.Errorf("identityRegistry.getAgentOwner failed: %w", callErr)
 	}
-
-	if len(result) < 5 {
-		return common.Address{}, "", false, nil, fmt.Errorf("identityRegistry.getAgent returned insufficient fields")
+	if len(ownerResult) < 1 {
+		return common.Address{}, "", false, nil, fmt.Errorf("identityRegistry.getAgentOwner returned no results")
 	}
+	owner, _ = ownerResult[0].(common.Address)
 
-	owner, _ = result[0].(common.Address)
-	// result[1] is agentId (bytes32), skip
-	metadata, _ = result[2].(string)
-	registeredAt, _ = result[3].(*big.Int)
-	active, _ = result[4].(bool)
+	active = c.IsAgentActiveOnchain(ctx, agentID)
 
-	return owner, metadata, active, registeredAt, nil
+	return owner, "", active, big.NewInt(0), nil
 }
 
 // WaitForTx waits for a transaction to be mined and returns the receipt.
