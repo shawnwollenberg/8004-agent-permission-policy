@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatDate } from '@/lib/utils'
 import { CopyableAddress } from '@/components/ui/copyable-address'
-import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, ShieldCheck, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, ShieldCheck, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp, ArrowDownToLine, Info } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi'
@@ -102,6 +102,12 @@ export default function AgentsPage() {
     address: withdrawAgent?.smart_account_address as `0x${string}` | undefined,
     token: USDC_ADDRESSES[withdrawChainId],
     query: { enabled: !!withdrawAgent?.smart_account_address && !!USDC_ADDRESSES[withdrawChainId] },
+  })
+
+  // Gas payer balance — connected wallet for wallet signers
+  const { data: connectedWalletBalance } = useBalance({
+    address: address,
+    query: { enabled: !!address && withdrawOpen && withdrawAgent?.signer_type !== 'generated' },
   })
 
   const { writeContract, data: withdrawTxHash, isPending: isWithdrawPending, reset: resetWithdraw } = useWriteContract()
@@ -729,7 +735,23 @@ export default function AgentsPage() {
                       </span>
                     </div>
                   )}
+                  {withdrawAgent.signer_type !== 'generated' && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Gas wallet (your wallet)</span>
+                      <span className="font-mono">
+                        {connectedWalletBalance ? `${parseFloat(formatEther(connectedWalletBalance.value)).toFixed(6)} ETH` : 'Loading...'}
+                      </span>
+                    </div>
+                  )}
                 </div>
+                {withdrawAgent.signer_type !== 'generated' && (
+                  <div className="flex items-start gap-2 rounded-md border border-blue-500/30 bg-blue-50 dark:bg-blue-950/20 p-2">
+                    <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                      Gas fees are paid from your connected wallet, not the smart account. Make sure your wallet has enough ETH to cover gas.
+                    </p>
+                  </div>
+                )}
 
                 {/* Token selector */}
                 <div>
