@@ -14,7 +14,7 @@ import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, ShieldCheck, Rocket,
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi'
-import { parseEther, formatEther, createWalletClient, http, encodeFunctionData, type Chain } from 'viem'
+import { parseEther, formatEther, parseUnits, formatUnits, createWalletClient, http, encodeFunctionData, type Chain } from 'viem'
 import { sepolia, base } from 'viem/chains'
 import { useToast } from '@/hooks/useToast'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
@@ -27,6 +27,25 @@ const SUPPORTED_CHAINS: Record<number, Chain> = {
 function getViemChain(chainId: number): Chain {
   return SUPPORTED_CHAINS[chainId] ?? sepolia
 }
+
+// USDC contract addresses per chain
+const USDC_ADDRESSES: Record<number, `0x${string}`> = {
+  [sepolia.id]: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+  [base.id]: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+}
+
+const ERC20_ABI = [
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bool' }],
+  },
+] as const
 
 const EXECUTE_ABI = [
   {
@@ -64,6 +83,7 @@ export default function AgentsPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false)
   const [withdrawAgent, setWithdrawAgent] = useState<Agent | null>(null)
   const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawToken, setWithdrawToken] = useState<'ETH' | 'USDC'>('ETH')
   const [botKeyInput, setBotKeyInput] = useState('')
   const [showBotKeyInput, setShowBotKeyInput] = useState(false)
   const [botKeyTxHash, setBotKeyTxHash] = useState<string | null>(null)
@@ -76,6 +96,12 @@ export default function AgentsPage() {
   const { data: smartAccountBalance, refetch: refetchBalance } = useBalance({
     address: withdrawAgent?.smart_account_address as `0x${string}` | undefined,
     query: { enabled: !!withdrawAgent?.smart_account_address },
+  })
+
+  const { data: usdcBalance, refetch: refetchUsdcBalance } = useBalance({
+    address: withdrawAgent?.smart_account_address as `0x${string}` | undefined,
+    token: USDC_ADDRESSES[withdrawChainId],
+    query: { enabled: !!withdrawAgent?.smart_account_address && !!USDC_ADDRESSES[withdrawChainId] },
   })
 
   const { writeContract, data: withdrawTxHash, isPending: isWithdrawPending, reset: resetWithdraw } = useWriteContract()
@@ -264,9 +290,10 @@ export default function AgentsPage() {
     setShowBotKeyInput(false)
     setBotKeyTxHash(null)
     setBotKeyTxStatus('idle')
+    setWithdrawToken('ETH')
     resetWithdraw()
     setWithdrawOpen(true)
-    setTimeout(() => refetchBalance(), 100)
+    setTimeout(() => { refetchBalance(); refetchUsdcBalance() }, 100)
 
     // Fetch the smart account's chain_id for correct chain routing
     try {
@@ -286,13 +313,29 @@ export default function AgentsPage() {
     }
 
     try {
-      const amountWei = parseEther(withdrawAmount)
-      writeContract({
-        address: withdrawAgent.smart_account_address as `0x${string}`,
-        abi: EXECUTE_ABI,
-        functionName: 'execute',
-        args: [address, amountWei, '0x'],
-      })
+      if (withdrawToken === 'ETH') {
+        const amountWei = parseEther(withdrawAmount)
+        writeContract({
+          address: withdrawAgent.smart_account_address as `0x${string}`,
+          abi: EXECUTE_ABI,
+          functionName: 'execute',
+          args: [address, amountWei, '0x'],
+        })
+      } else {
+        const usdcAddr = USDC_ADDRESSES[withdrawChainId]
+        if (!usdcAddr) { toast({ title: 'USDC not supported on this chain', variant: 'destructive' }); return }
+        const transferData = encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [address, parseUnits(withdrawAmount, 6)],
+        })
+        writeContract({
+          address: withdrawAgent.smart_account_address as `0x${string}`,
+          abi: EXECUTE_ABI,
+          functionName: 'execute',
+          args: [usdcAddr, BigInt(0), transferData],
+        })
+      }
     } catch {
       toast({ title: 'Invalid amount', variant: 'destructive' })
     }
@@ -318,11 +361,23 @@ export default function AgentsPage() {
         transport: http(),
       })
 
-      const amountWei = parseEther(withdrawAmount)
+      let executeArgs: [`0x${string}`, bigint, `0x${string}`]
+      if (withdrawToken === 'ETH') {
+        executeArgs = [address, parseEther(withdrawAmount), '0x']
+      } else {
+        const usdcAddr = USDC_ADDRESSES[withdrawChainId]
+        if (!usdcAddr) { toast({ title: 'USDC not supported on this chain', variant: 'destructive' }); return }
+        const transferData = encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [address, parseUnits(withdrawAmount, 6)],
+        })
+        executeArgs = [usdcAddr, BigInt(0), transferData]
+      }
       const data = encodeFunctionData({
         abi: EXECUTE_ABI,
         functionName: 'execute',
-        args: [address, amountWei, '0x'],
+        args: executeArgs,
       })
 
       const hash = await walletClient.sendTransaction({
@@ -368,6 +423,7 @@ export default function AgentsPage() {
     setWithdrawOpen(false)
     setWithdrawAgent(null)
     setWithdrawAmount('')
+    setWithdrawToken('ETH')
     setBotKeyInput('')
     setShowBotKeyInput(false)
     setBotKeyTxHash(null)
@@ -645,7 +701,7 @@ export default function AgentsPage() {
               Withdraw from Secure Account
             </Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground mt-1 mb-4">
-              Send ETH from the smart account back to your connected wallet.
+              Send tokens from the smart account back to your connected wallet.
             </Dialog.Description>
 
             {withdrawAgent && (
@@ -660,10 +716,41 @@ export default function AgentsPage() {
                     <span className="font-mono text-xs">{address?.slice(0, 8)}...{address?.slice(-6)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Balance</span>
+                    <span className="text-muted-foreground">ETH Balance</span>
                     <span className="font-mono">
                       {smartAccountBalance ? `${parseFloat(formatEther(smartAccountBalance.value)).toFixed(6)} ETH` : 'Loading...'}
                     </span>
+                  </div>
+                  {USDC_ADDRESSES[withdrawChainId] && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">USDC Balance</span>
+                      <span className="font-mono">
+                        {usdcBalance ? `${parseFloat(formatUnits(usdcBalance.value, 6)).toFixed(2)} USDC` : 'Loading...'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Token selector */}
+                <div>
+                  <Label>Token</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Button
+                      variant={withdrawToken === 'ETH' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => { setWithdrawToken('ETH'); setWithdrawAmount('') }}
+                    >
+                      ETH
+                    </Button>
+                    {USDC_ADDRESSES[withdrawChainId] && (
+                      <Button
+                        variant={withdrawToken === 'USDC' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setWithdrawToken('USDC'); setWithdrawAmount('') }}
+                      >
+                        USDC
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -701,7 +788,7 @@ export default function AgentsPage() {
                 )}
 
                 <div>
-                  <Label htmlFor="withdraw-amount">Amount (ETH)</Label>
+                  <Label htmlFor="withdraw-amount">Amount ({withdrawToken})</Label>
                   <div className="flex gap-2 mt-1">
                     <Input
                       id="withdraw-amount"
@@ -709,17 +796,19 @@ export default function AgentsPage() {
                       inputMode="decimal"
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
-                      placeholder="0.01"
+                      placeholder={withdrawToken === 'ETH' ? '0.01' : '10.00'}
                     />
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        if (smartAccountBalance) {
+                        if (withdrawToken === 'ETH' && smartAccountBalance) {
                           setWithdrawAmount(formatEther(smartAccountBalance.value))
+                        } else if (withdrawToken === 'USDC' && usdcBalance) {
+                          setWithdrawAmount(formatUnits(usdcBalance.value, 6))
                         }
                       }}
-                      disabled={!smartAccountBalance}
+                      disabled={withdrawToken === 'ETH' ? !smartAccountBalance : !usdcBalance}
                     >
                       Max
                     </Button>
@@ -754,8 +843,7 @@ export default function AgentsPage() {
                     onClick={handleWithdraw}
                     disabled={
                       !withdrawAmount ||
-                      !smartAccountBalance ||
-                      smartAccountBalance.value === BigInt(0) ||
+                      (withdrawToken === 'ETH' ? (!smartAccountBalance || smartAccountBalance.value === BigInt(0)) : (!usdcBalance || usdcBalance.value === BigInt(0))) ||
                       (withdrawAgent.signer_type === 'generated'
                         ? !botKeyInput || botKeyTxStatus === 'sending' || botKeyTxStatus === 'confirming'
                         : isWithdrawPending || isWithdrawConfirming)
