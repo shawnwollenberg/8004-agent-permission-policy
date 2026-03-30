@@ -397,13 +397,15 @@ func (h *Handlers) SyncOnchainAgents(w http.ResponseWriter, r *http.Request) {
 		}
 
 		imported = append(imported, agent)
-	}
 
-	if len(imported) > 0 {
 		h.auditLogger.Log(ctx, audit.Event{
 			WalletID:  walletID,
+			AgentID:   &agent.ID,
 			EventType: "agent.synced_from_chain",
-			Details:   map[string]interface{}{"count": len(imported)},
+			Details: map[string]interface{}{
+				"name":        agent.Name,
+				"registry_id": registryHex,
+			},
 		})
 	}
 

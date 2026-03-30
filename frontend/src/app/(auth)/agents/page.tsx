@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatDate } from '@/lib/utils'
 import { CopyableAddress } from '@/components/ui/copyable-address'
-import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, ShieldCheck, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp, ArrowDownToLine, Info } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Link as LinkIcon, Bot, ShieldCheck, Rocket, Key, Download, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronUp, ArrowDownToLine, Info, RefreshCw } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi'
@@ -121,21 +121,17 @@ export default function AgentsPage() {
     queryFn: agents.list,
   })
 
-  // Fire-and-forget: sync on-chain agents on mount
   const syncMutation = useMutation({
     mutationFn: agents.sync,
     onSuccess: (synced) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
       if (synced?.length > 0) {
-        queryClient.invalidateQueries({ queryKey: ['agents'] })
         toast({ title: `Synced ${synced.length} on-chain agent${synced.length > 1 ? 's' : ''}`, variant: 'success' })
+      } else {
+        toast({ title: 'No new on-chain agents found' })
       }
     },
   })
-
-  useEffect(() => {
-    syncMutation.mutate()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const deployMutation = useMutation({
     mutationFn: ({ agentId, signerAddress, signerType, chainIdOverride }: { agentId: string; signerAddress: string; signerType?: string; chainIdOverride?: number }) =>
@@ -460,7 +456,16 @@ export default function AgentsPage() {
             Manage your AI agents and their on-chain Secure Accounts
           </p>
         </div>
-        <Dialog.Root open={isCreateOpen} onOpenChange={handleCloseCreateDialog}>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            Sync On-chain
+          </Button>
+          <Dialog.Root open={isCreateOpen} onOpenChange={handleCloseCreateDialog}>
           <Dialog.Trigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -599,6 +604,7 @@ export default function AgentsPage() {
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
+        </div>
       </div>
 
       {/* Private Key Reveal Dialog */}
