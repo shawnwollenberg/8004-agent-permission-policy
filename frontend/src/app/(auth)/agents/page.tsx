@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { agents, type Agent } from '@/lib/api'
+import { BASE_RPC_URL } from '@/lib/wagmi'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +27,11 @@ const SUPPORTED_CHAINS: Record<number, Chain> = {
 
 function getViemChain(chainId: number): Chain {
   return SUPPORTED_CHAINS[chainId] ?? sepolia
+}
+
+function getRpcUrl(chainId: number): string {
+  if (chainId === base.id) return BASE_RPC_URL
+  return '' // let viem use the chain default for other networks
 }
 
 // USDC contract addresses per chain
@@ -362,7 +368,7 @@ export default function AgentsPage() {
       const walletClient = createWalletClient({
         account,
         chain: getViemChain(withdrawChainId),
-        transport: http(),
+        transport: http(getRpcUrl(withdrawChainId)),
       })
 
       let executeArgs: [`0x${string}`, bigint, `0x${string}`]
@@ -395,7 +401,7 @@ export default function AgentsPage() {
       const { createPublicClient } = await import('viem')
       const publicClient = createPublicClient({
         chain: getViemChain(withdrawChainId),
-        transport: http(),
+        transport: http(getRpcUrl(withdrawChainId)),
       })
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
