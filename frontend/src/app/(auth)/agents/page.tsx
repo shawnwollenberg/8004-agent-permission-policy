@@ -322,6 +322,7 @@ export default function AgentsPage() {
           abi: EXECUTE_ABI,
           functionName: 'execute',
           args: [address, amountWei, '0x'],
+          chainId: withdrawChainId,
         })
       } else {
         const usdcAddr = USDC_ADDRESSES[withdrawChainId]
@@ -336,6 +337,7 @@ export default function AgentsPage() {
           abi: EXECUTE_ABI,
           functionName: 'execute',
           args: [usdcAddr, BigInt(0), transferData],
+          chainId: withdrawChainId,
         })
       }
     } catch {
