@@ -56,13 +56,14 @@ export default function DocsPage() {
           </div>
 
           <Tabs defaultValue="quickstart" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="quickstart">Quick Start</TabsTrigger>
               <TabsTrigger value="concepts">Concepts</TabsTrigger>
               <TabsTrigger value="workflows">Workflows</TabsTrigger>
               <TabsTrigger value="api">API Reference</TabsTrigger>
               <TabsTrigger value="contracts">Smart Contracts</TabsTrigger>
               <TabsTrigger value="integration">Integration</TabsTrigger>
+              <TabsTrigger value="faq">FAQ</TabsTrigger>
             </TabsList>
 
             <TabsContent value="quickstart" className="space-y-6">
@@ -1105,6 +1106,130 @@ if (allowed) {
                       </div>
                     </li>
                   </ul>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="faq" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5" />
+                    Frequently Asked Questions
+                  </CardTitle>
+                  <CardDescription>
+                    Common questions about AgentGuardrail
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8">
+
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      <Key className="h-5 w-5 text-primary" />
+                      Connected Wallet vs. Bot Signer — which should I use?
+                    </h3>
+                    <p className="text-muted-foreground">
+                      The right choice depends on whether a human is in the loop when your agent executes transactions.
+                    </p>
+                    <div className="grid md:grid-cols-2 gap-4 mt-4">
+                      <div className="rounded-lg border p-4 space-y-3">
+                        <div className="font-medium flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          Connected Wallet
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Your wallet (MetaMask, Rabby, etc.) signs every transaction. The same wallet that controls the account also signs for it.
+                        </p>
+                        <div className="text-sm space-y-1">
+                          <p className="font-medium text-foreground">Best for:</p>
+                          <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                            <li>Testing and development</li>
+                            <li>Agents that need human approval per action</li>
+                            <li>Simple use cases where you're involved in each transaction</li>
+                          </ul>
+                        </div>
+                        <div className="text-sm space-y-1">
+                          <p className="font-medium text-foreground">Gas:</p>
+                          <p className="text-muted-foreground">Paid from your connected wallet's ETH balance.</p>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border p-4 space-y-3">
+                        <div className="font-medium flex items-center gap-2">
+                          <Bot className="h-4 w-4 text-primary" />
+                          Bot Signer
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          A generated keypair the agent uses to sign UserOperations autonomously. Your connected wallet remains the account owner with full withdrawal rights.
+                        </p>
+                        <div className="text-sm space-y-1">
+                          <p className="font-medium text-foreground">Best for:</p>
+                          <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                            <li>Fully autonomous agents running 24/7 on a server</li>
+                            <li>Agents that need to act without human interaction</li>
+                            <li>Multi-agent systems where each agent needs its own key</li>
+                          </ul>
+                        </div>
+                        <div className="text-sm space-y-1">
+                          <p className="font-medium text-foreground">Gas:</p>
+                          <p className="text-muted-foreground">Paid from the smart account's ETH balance via the ERC-4337 bundler path.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-6 space-y-2">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-primary" />
+                      If I use a Bot Signer, who controls the account?
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Your connected wallet is always the <strong>owner</strong> of the smart account — it can call <code className="text-xs bg-muted px-1 py-0.5 rounded">execute()</code> directly, which is how withdrawals work from the dashboard. The bot's private key is the <strong>signer</strong> — it's only used to authorize UserOperations through the ERC-4337 bundler path that the autonomous agent uses at runtime.
+                    </p>
+                    <p className="text-muted-foreground mt-2">
+                      This means even if a bot key is lost or compromised, your connected wallet retains full access to withdraw funds and remains in control of the account.
+                    </p>
+                  </div>
+
+                  <div className="border-t pt-6 space-y-2">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      <Key className="h-5 w-5 text-primary" />
+                      Where is the bot's private key stored?
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Nowhere on our side. The keypair is generated in your browser and the private key is shown exactly once — at the moment the smart account is deployed. We never transmit or store it. You're responsible for saving it securely (e.g., in a <code className="text-xs bg-muted px-1 py-0.5 rounded">.env</code> file on your server).
+                    </p>
+                  </div>
+
+                  <div className="border-t pt-6 space-y-2">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-primary" />
+                      What happens if my agent tries to exceed its policy limits?
+                    </h3>
+                    <p className="text-muted-foreground">
+                      The transaction reverts on-chain before execution. This is enforced inside <code className="text-xs bg-muted px-1 py-0.5 rounded">AgentSmartAccount.validateUserOp()</code>, which calls the <code className="text-xs bg-muted px-1 py-0.5 rounded">PermissionEnforcer</code> contract before any funds move. A <code className="text-xs bg-muted px-1 py-0.5 rounded">ConstraintViolation</code> event is emitted and indexed into your audit log automatically.
+                    </p>
+                  </div>
+
+                  <div className="border-t pt-6 space-y-2">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      <Globe className="h-5 w-5 text-primary" />
+                      Which networks are supported?
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Currently Sepolia (testnet) and Base mainnet. Additional EVM-compatible networks can be added — the contracts are chain-agnostic.
+                    </p>
+                  </div>
+
+                  <div className="border-t pt-6 space-y-2">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      <ArrowDownToLine className="h-5 w-5 text-primary" />
+                      How do I withdraw funds from a smart account?
+                    </h3>
+                    <p className="text-muted-foreground">
+                      From the Agents dashboard, open the menu on any agent card and select <strong>Withdraw</strong>. You can withdraw ETH or USDC back to your connected wallet. Gas is paid from your connected wallet — not the smart account — for dashboard withdrawals.
+                    </p>
+                  </div>
+
                 </CardContent>
               </Card>
             </TabsContent>

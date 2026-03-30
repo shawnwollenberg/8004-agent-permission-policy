@@ -99,7 +99,7 @@ export const agents = {
       method: 'POST',
       body: chainId ? JSON.stringify({ chain_id: chainId }) : undefined,
     }),
-  deploySmartAccount: (id: string, data: { signer_address: string; signer_type?: string; chain_id?: number }) =>
+  deploySmartAccount: (id: string, data: { owner_address?: string; signer_address: string; signer_type?: string; chain_id?: number }) =>
     fetchApi<SmartAccount>(`/api/v1/agents/${id}/deploy-smart-account`, { method: 'POST', body: JSON.stringify(data) }),
   getSmartAccount: (id: string) =>
     fetchApi<SmartAccount>(`/api/v1/agents/${id}/smart-account`),

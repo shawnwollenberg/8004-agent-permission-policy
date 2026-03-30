@@ -147,7 +147,7 @@ func TestCreateSmartAccount_Simulated(t *testing.T) {
 	copy(agentID[:], []byte("test-agent"))
 	copy(salt[:], []byte("test-salt"))
 
-	addr, txHash, err := client.CreateSmartAccount(nil, [20]byte{}, agentID, salt)
+	addr, txHash, err := client.CreateSmartAccount(nil, [20]byte{}, [20]byte{}, agentID, salt)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

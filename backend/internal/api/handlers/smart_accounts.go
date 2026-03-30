@@ -33,9 +33,15 @@ type SmartAccount struct {
 }
 
 type DeploySmartAccountRequest struct {
+	// OwnerAddress is the connected wallet — controls the account, can call execute() directly.
+	// For generated bot signers this must be set to the user's wallet address.
+	// For wallet signers it may be omitted; SignerAddress is used as owner.
+	OwnerAddress string `json:"owner_address,omitempty"`
+	// SignerAddress is the key verified in validateUserOp.
+	// For wallet signers: same as owner. For bot signers: the generated bot EOA.
 	SignerAddress string `json:"signer_address"`
 	SignerType    string `json:"signer_type,omitempty"`
-	ChainID      int64  `json:"chain_id,omitempty"`
+	ChainID       int64  `json:"chain_id,omitempty"`
 }
 
 // DeploySmartAccount deploys a new ERC-4337 smart account for an agent.
@@ -110,10 +116,18 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 	var deployTxHash *string
 	deployed := false
 
+	// owner = connected wallet (controls account, can withdraw directly)
+	// signer = key verified in validateUserOp (bot EOA for generated; same as owner for wallet signers)
+	ownerAddr := req.OwnerAddress
+	if ownerAddr == "" {
+		ownerAddr = req.SignerAddress // wallet-signer: owner == signer
+	}
+	owner := common.HexToAddress(ownerAddr)
+	signer := common.HexToAddress(req.SignerAddress)
+
 	if !bc.IsSimulated() {
 		// Live mode: deploy on-chain
-		owner := common.HexToAddress(req.SignerAddress)
-		addr, txHash, err := bc.CreateSmartAccount(r.Context(), owner, agentIDBytes32, saltBytes)
+		addr, txHash, err := bc.CreateSmartAccount(r.Context(), owner, signer, agentIDBytes32, saltBytes)
 		if err != nil {
 			h.logger.Error().Err(err).Msg("on-chain smart account deployment failed")
 			respondError(w, http.StatusInternalServerError, "on-chain deployment failed: "+err.Error())
@@ -124,7 +138,7 @@ func (h *Handlers) DeploySmartAccount(w http.ResponseWriter, r *http.Request) {
 		deployed = true
 	} else {
 		// Simulated mode: compute deterministic address
-		addr, err := bc.ComputeSmartAccountAddress(req.SignerAddress, agentID.String(), salt)
+		addr, err := bc.ComputeSmartAccountAddress(ownerAddr, agentID.String(), salt)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to compute address")
 			return

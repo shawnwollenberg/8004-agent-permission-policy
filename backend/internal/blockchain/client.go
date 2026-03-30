@@ -298,10 +298,12 @@ func (c *Client) GetCreationFee(ctx context.Context) (*big.Int, error) {
 }
 
 // CreateSmartAccount deploys a new ERC-4337 smart account via the factory.
+// owner is the controlling wallet (can call execute() directly).
+// signer is the key verified in validateUserOp (same as owner for wallet signers; bot EOA for generated signers).
 // Returns the deployed account address and transaction hash.
-func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, agentID [32]byte, salt [32]byte) (string, string, error) {
+func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, signer common.Address, agentID [32]byte, salt [32]byte) (string, string, error) {
 	if c.simulated || c.factory == nil {
-		input := fmt.Sprintf("%s:%s:%s", owner.Hex(), hex.EncodeToString(agentID[:]), hex.EncodeToString(salt[:]))
+		input := fmt.Sprintf("%s:%s:%s:%s", owner.Hex(), signer.Hex(), hex.EncodeToString(agentID[:]), hex.EncodeToString(salt[:]))
 		addrHash := sha256.Sum256([]byte(input))
 		addr := "0x" + hex.EncodeToString(addrHash[:20])
 		txHash := sha256.Sum256(append([]byte("deploy:"), addrHash[:]...))
@@ -315,7 +317,7 @@ func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, a
 		creationFee = big.NewInt(0)
 	}
 
-	tx, err := c.transactWithValue(ctx, c.factory.BoundContract, "createAccount", creationFee, owner, agentID, salt)
+	tx, err := c.transactWithValue(ctx, c.factory.BoundContract, "createAccount", creationFee, owner, signer, agentID, salt)
 	if err != nil {
 		return "", "", fmt.Errorf("createAccount tx failed: %w", err)
 	}
@@ -327,7 +329,7 @@ func (c *Client) CreateSmartAccount(ctx context.Context, owner common.Address, a
 
 	// Read the account address from the return value by calling getAddress
 	var result []interface{}
-	err = c.factory.Call(&bind.CallOpts{Context: ctx}, &result, "getAddress", owner, agentID, salt)
+	err = c.factory.Call(&bind.CallOpts{Context: ctx}, &result, "getAddress", owner, signer, agentID, salt)
 	if err != nil {
 		return "", receipt.TxHash.Hex(), fmt.Errorf("factory.getAddress post-deploy failed: %w", err)
 	}

@@ -122,8 +122,8 @@ func NewPriceOracle(address common.Address, backend bind.ContractBackend) (*Pric
 // --- AgentAccountFactory ---
 
 const agentAccountFactoryABI = `[
-	{"type":"function","name":"createAccount","inputs":[{"name":"owner","type":"address"},{"name":"agentId","type":"bytes32"},{"name":"salt","type":"bytes32"}],"outputs":[{"name":"account","type":"address"}],"stateMutability":"payable"},
-	{"type":"function","name":"getAddress","inputs":[{"name":"owner","type":"address"},{"name":"agentId","type":"bytes32"},{"name":"salt","type":"bytes32"}],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+	{"type":"function","name":"createAccount","inputs":[{"name":"owner","type":"address"},{"name":"signer","type":"address"},{"name":"agentId","type":"bytes32"},{"name":"salt","type":"bytes32"}],"outputs":[{"name":"account","type":"address"}],"stateMutability":"payable"},
+	{"type":"function","name":"getAddress","inputs":[{"name":"owner","type":"address"},{"name":"signer","type":"address"},{"name":"agentId","type":"bytes32"},{"name":"salt","type":"bytes32"}],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
 	{"type":"function","name":"getCreationFee","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"}
 ]`
 

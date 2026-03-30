@@ -105,14 +105,14 @@ contract AgentSmartAccountTest is Test {
     // --- Helper to create account with fee ---
 
     function _createAccount(bytes32 salt) internal returns (AgentSmartAccount) {
-        return factory.createAccount{value: CREATION_FEE}(owner, AGENT_ID, salt);
+        return factory.createAccount{value: CREATION_FEE}(owner, owner, AGENT_ID, salt);
     }
 
     // --- Factory tests ---
 
     function test_FactoryCreateAccount() public {
         bytes32 salt = keccak256("salt1");
-        address predicted = factory.getAddress(owner, AGENT_ID, salt);
+        address predicted = factory.getAddress(owner, owner, AGENT_ID, salt);
 
         AgentSmartAccount account = _createAccount(salt);
         assertEq(address(account), predicted);
@@ -126,7 +126,7 @@ contract AgentSmartAccountTest is Test {
         AgentSmartAccount account1 = _createAccount(salt);
         // Second call should return same address and refund msg.value
         uint256 balBefore = address(this).balance;
-        AgentSmartAccount account2 = factory.createAccount{value: CREATION_FEE}(owner, AGENT_ID, salt);
+        AgentSmartAccount account2 = factory.createAccount{value: CREATION_FEE}(owner, owner, AGENT_ID, salt);
         uint256 balAfter = address(this).balance;
         assertEq(address(account1), address(account2));
         // Should have been refunded
@@ -137,20 +137,20 @@ contract AgentSmartAccountTest is Test {
         bytes32 salt = keccak256("salt1");
         _createAccount(salt);
         // Second call with 0 msg.value should also work
-        AgentSmartAccount account2 = factory.createAccount{value: 0}(owner, AGENT_ID, salt);
+        AgentSmartAccount account2 = factory.createAccount{value: 0}(owner, owner, AGENT_ID, salt);
         assertEq(account2.owner(), owner);
     }
 
     function test_FactoryDeterministicAddress() public {
         bytes32 salt = keccak256("salt1");
-        address predicted = factory.getAddress(owner, AGENT_ID, salt);
+        address predicted = factory.getAddress(owner, owner, AGENT_ID, salt);
 
         // Different salt produces different address
-        address predicted2 = factory.getAddress(owner, AGENT_ID, keccak256("salt2"));
+        address predicted2 = factory.getAddress(owner, owner, AGENT_ID, keccak256("salt2"));
         assertTrue(predicted != predicted2);
 
         // Same params always produce same address
-        address predicted3 = factory.getAddress(owner, AGENT_ID, salt);
+        address predicted3 = factory.getAddress(owner, owner, AGENT_ID, salt);
         assertEq(predicted, predicted3);
     }
 
@@ -163,14 +163,14 @@ contract AgentSmartAccountTest is Test {
                 CREATION_FEE - 1
             )
         );
-        factory.createAccount{value: CREATION_FEE - 1}(owner, AGENT_ID, salt);
+        factory.createAccount{value: CREATION_FEE - 1}(owner, owner, AGENT_ID, salt);
     }
 
     function test_FactoryCreateAccount_RefundsExcess() public {
         bytes32 salt = keccak256("salt1");
         uint256 excess = 0.01 ether;
         uint256 balBefore = address(this).balance;
-        factory.createAccount{value: CREATION_FEE + excess}(owner, AGENT_ID, salt);
+        factory.createAccount{value: CREATION_FEE + excess}(owner, owner, AGENT_ID, salt);
         uint256 balAfter = address(this).balance;
         // Should have paid only CREATION_FEE
         assertEq(balBefore - balAfter, CREATION_FEE);

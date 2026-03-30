@@ -141,7 +141,12 @@ export default function AgentsPage() {
 
   const deployMutation = useMutation({
     mutationFn: ({ agentId, signerAddress, signerType, chainIdOverride }: { agentId: string; signerAddress: string; signerType?: string; chainIdOverride?: number }) =>
-      agents.deploySmartAccount(agentId, { signer_address: signerAddress, signer_type: signerType, chain_id: chainIdOverride ?? chainId }),
+      agents.deploySmartAccount(agentId, {
+        owner_address: address,   // connected wallet is always the owner
+        signer_address: signerAddress,
+        signer_type: signerType,
+        chain_id: chainIdOverride ?? chainId,
+      }),
     onSuccess: (sa) => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       if (sa.signer_type === 'generated' && generatedKey) {
@@ -315,11 +320,7 @@ export default function AgentsPage() {
   const handleWithdraw = () => {
     if (!withdrawAgent?.smart_account_address || !address || !withdrawAmount) return
 
-    if (withdrawAgent.signer_type === 'generated') {
-      handleBotKeyWithdraw()
-      return
-    }
-
+    // Connected wallet is always the owner — use writeContract for both signer types
     try {
       if (withdrawToken === 'ETH') {
         const amountWei = parseEther(withdrawAmount)
@@ -790,36 +791,12 @@ export default function AgentsPage() {
                   </div>
                 </div>
 
-                {/* Bot signer key input for generated signers */}
                 {withdrawAgent.signer_type === 'generated' && (
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                      <p className="text-xs text-amber-700 dark:text-amber-400">
-                        This account uses a generated bot signer. Paste the bot&apos;s private key to sign the withdrawal. The key is used client-side only and is never sent to any server.
-                      </p>
-                    </div>
-                    <div>
-                      <Label htmlFor="bot-key">Bot Private Key</Label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Input
-                          id="bot-key"
-                          type={showBotKeyInput ? 'text' : 'password'}
-                          value={botKeyInput}
-                          onChange={(e) => setBotKeyInput(e.target.value)}
-                          placeholder="0x..."
-                          className="font-mono text-sm"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setShowBotKeyInput(!showBotKeyInput)}
-                          title={showBotKeyInput ? 'Hide' : 'Show'}
-                        >
-                          {showBotKeyInput ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </div>
+                  <div className="flex items-start gap-2 rounded-md border border-blue-500/30 bg-blue-50 dark:bg-blue-950/20 p-2">
+                    <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                      This is a bot signer account. Your connected wallet is the owner and will sign this withdrawal directly.
+                    </p>
                   </div>
                 )}
 
@@ -880,15 +857,10 @@ export default function AgentsPage() {
                     disabled={
                       !withdrawAmount ||
                       (withdrawToken === 'ETH' ? (!smartAccountBalance || smartAccountBalance.value === BigInt(0)) : (!usdcBalance || usdcBalance.value === BigInt(0))) ||
-                      (withdrawAgent.signer_type === 'generated'
-                        ? !botKeyInput || botKeyTxStatus === 'sending' || botKeyTxStatus === 'confirming'
-                        : isWithdrawPending || isWithdrawConfirming)
+                      isWithdrawPending || isWithdrawConfirming
                     }
                   >
-                    {withdrawAgent.signer_type === 'generated'
-                      ? (botKeyTxStatus === 'sending' ? 'Signing...' : botKeyTxStatus === 'confirming' ? 'Confirming...' : 'Withdraw')
-                      : (isWithdrawPending ? 'Confirm in wallet...' : isWithdrawConfirming ? 'Confirming...' : 'Withdraw')
-                    }
+                    {isWithdrawPending ? 'Confirm in wallet...' : isWithdrawConfirming ? 'Confirming...' : 'Withdraw'}
                   </Button>
                 </div>
               </div>

@@ -14,7 +14,14 @@ import "./GuardrailFeeManager.sol";
 contract AgentSmartAccount is IAccount {
     uint256 internal constant SIG_VALIDATION_FAILED = 1;
 
+    /// @notice The wallet that owns this account and can call execute() directly.
+    ///         For bot signers this is the connected wallet, not the bot EOA.
     address public immutable owner;
+
+    /// @notice The key whose ECDSA signature is verified in validateUserOp.
+    ///         Equals owner for connected-wallet signers; the bot EOA for generated signers.
+    address public immutable signer;
+
     bytes32 public immutable agentId;
     PermissionEnforcer public immutable enforcer;
     address public immutable entryPoint;
@@ -33,8 +40,9 @@ contract AgentSmartAccount is IAccount {
         _;
     }
 
-    constructor(address _owner, bytes32 _agentId, address _enforcer, address _entryPoint, address _feeManager) {
+    constructor(address _owner, address _signer, bytes32 _agentId, address _enforcer, address _entryPoint, address _feeManager) {
         owner = _owner;
+        signer = _signer;
         agentId = _agentId;
         enforcer = PermissionEnforcer(_enforcer);
         entryPoint = _entryPoint;
@@ -201,7 +209,7 @@ contract AgentSmartAccount is IAccount {
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         address recovered = ecrecover(prefixedHash, v, r, s);
 
-        return recovered == owner;
+        return recovered == signer;
     }
 
     receive() external payable {}

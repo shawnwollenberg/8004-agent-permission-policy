@@ -29,21 +29,26 @@ contract AgentAccountFactory {
 
     /**
      * @notice Deploy a new AgentSmartAccount using CREATE2
-     * @param owner The signer EOA that controls the account
+     * @param owner The wallet that owns the account and can call execute() directly.
+     *              For bot signers, this is the connected wallet — not the bot EOA.
+     * @param signer The key whose signature is verified in validateUserOp.
+     *               Pass the same address as owner for connected-wallet signers.
+     *               Pass the bot EOA address for generated bot signers.
      * @param agentId The agent's identifier
      * @param salt A salt for deterministic deployment
      * @return account The deployed account address
      */
     function createAccount(
         address owner,
+        address signer,
         bytes32 agentId,
         bytes32 salt
     ) external payable returns (AgentSmartAccount account) {
-        // Combine salt with owner and agentId for uniqueness
-        bytes32 combinedSalt = keccak256(abi.encodePacked(owner, agentId, salt));
+        // Combine salt with owner, signer, and agentId for uniqueness
+        bytes32 combinedSalt = keccak256(abi.encodePacked(owner, signer, agentId, salt));
 
         // Check if already deployed (idempotent) — refund any msg.value
-        address predicted = getAddress(owner, agentId, salt);
+        address predicted = getAddress(owner, signer, agentId, salt);
         if (predicted.code.length > 0) {
             if (msg.value > 0) {
                 (bool refunded, ) = payable(msg.sender).call{value: msg.value}("");
@@ -60,6 +65,7 @@ contract AgentAccountFactory {
 
         account = new AgentSmartAccount{salt: combinedSalt}(
             owner,
+            signer,
             agentId,
             address(enforcer),
             entryPoint,
@@ -79,6 +85,7 @@ contract AgentAccountFactory {
         }
 
         emit AccountCreated(address(account), owner, agentId);
+        // signer is stored in the account contract and readable via account.signer()
         emit CreationFeePaid(address(account), requiredFee);
     }
 
@@ -92,17 +99,19 @@ contract AgentAccountFactory {
 
     /**
      * @notice Compute the address of a smart account without deploying
-     * @param owner The signer EOA
+     * @param owner The wallet owner address
+     * @param signer The signing key address
      * @param agentId The agent's identifier
      * @param salt A salt for deterministic deployment
      * @return The predicted address
      */
     function getAddress(
         address owner,
+        address signer,
         bytes32 agentId,
         bytes32 salt
     ) public view returns (address) {
-        bytes32 combinedSalt = keccak256(abi.encodePacked(owner, agentId, salt));
+        bytes32 combinedSalt = keccak256(abi.encodePacked(owner, signer, agentId, salt));
 
         bytes32 hash = keccak256(
             abi.encodePacked(
@@ -112,7 +121,7 @@ contract AgentAccountFactory {
                 keccak256(
                     abi.encodePacked(
                         type(AgentSmartAccount).creationCode,
-                        abi.encode(owner, agentId, address(enforcer), entryPoint, address(feeManager))
+                        abi.encode(owner, signer, agentId, address(enforcer), entryPoint, address(feeManager))
                     )
                 )
             )
