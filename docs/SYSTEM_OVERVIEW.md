@@ -162,45 +162,76 @@ The dashboard links on-chain entries directly to Etherscan so you can trace from
 
 ### The gap
 
-The current system answers *what happened* — the audit log records every enforcement result, constraint violation, and execution with a cryptographic reference to the on-chain transaction. What it does not yet capture is *why* the agent took an action. Two USDC swaps for the same amount and the same protocol are indistinguishable in the log today even if one was part of a planned rebalance and the other was an anomalous behavior.
+The current system answers *what happened* — the audit log records every enforcement result, constraint violation, and execution with a cryptographic reference to the on-chain transaction. What it does not yet capture is *why* the agent took an action. Two USDC swaps for the same amount and the same protocol are indistinguishable in the log today even if one was part of a planned rebalance and the other was anomalous behavior.
 
-### What intent capture adds
+### Design principle: contract-native, IPFS-backed
 
-Before executing a transaction, the agent submits a structured intent to the API:
+The intent layer is designed around a simple rule: **the smart contract is the source of truth, IPFS is the full-payload store, and the API is an observability layer.** There is no database-only path. Any intent can be independently verified — from the chain to IPFS — without trusting the backend at all.
 
-```json
-{
-  "agent_id": "0xabc...",
-  "intent": "Rebalance portfolio: sell 50 USDC → ETH to restore 60/40 target allocation",
-  "reasoning": "ETH allocation has dropped to 35% due to price movement",
-  "planned_actions": [
-    { "type": "swap", "token_in": "USDC", "token_out": "ETH", "amount": "50" }
-  ],
-  "context": { "portfolio_value_usd": 1240.00, "current_eth_pct": 0.35 }
-}
+```
+Agent
+  │
+  ▼
+POST /api/v1/intents
+  │  1. policy ceiling check (constraints ≤ active policy)
+  │  2. pin full intent JSON to IPFS → CID
+  │  3. call IntentRegistry.registerIntent(intentHash, permissionId, expiresAt, CID)
+  │
+  ▼
+IntentRegistry.sol  ←  source of truth
+  stores: intentHash → { state, permissionId, expiresAt, ipfsCid }
+  verifies: agent's permissionId is active in PolicyRegistry
+  emits: IntentRegistered(intentHash, agent, permissionId, ipfsCid)
+  │
+  ▼
+Agent builds UserOperation with intentHash in calldata
+  │
+  ▼
+AgentSmartAccount.validateUserOp()
+  ├── extracts intentHash from calldata
+  ├── verifies intent is Registered + not expired  (IntentRegistry)
+  ├── marks intent Executing                       (IntentRegistry)
+  └── runs policy constraint check                 (PermissionEnforcer)
+  │
+  ▼
+execute() → on-chain transaction
+  │
+  ▼
+Indexer picks up Executed event
+  └── fetches full payload from IPFS via on-chain CID
+  └── reconciles outcome against intent constraints
 ```
 
-The backend stores this as an `intent_record` and returns an `intent_id`. The agent includes the `intent_id` in the UserOperation calldata. The on-chain enforcer emits it in the `Executed` event, and the indexer links the execution back to the intent.
+### Storage layers
+
+| Layer | What it stores | Authority |
+|---|---|---|
+| `IntentRegistry.sol` | `intentHash → state + CID + permissionId` | Source of truth |
+| IPFS | Full intent JSON (targets, assets, constraints, reasoning) | Immutable payload store |
+| Database | Indexed cache: CID, status, agentId, actionType — enough to query the dashboard | Derived; recoverable by replaying chain events |
+
+The DB does not duplicate the full intent payload. If it is ever lost or out of sync, the complete intent history is recoverable by replaying `IntentRegistered` events from the chain and fetching each CID from IPFS.
+
+### Execution is gated at the contract level
+
+`AgentSmartAccount.validateUserOp()` will reject any UserOperation that does not carry a valid `intentHash` pointing to a `Registered` intent in `IntentRegistry`. This is enforced at the contract level — the API cannot override it, and neither can a compromised backend. An agent that submits a misleading intent and tries to execute something different still hits `PermissionEnforcer` and reverts.
+
+### What the API provides
+
+The API's role in the intent layer is **observability and reporting**, not enforcement:
+
+- `POST /api/v1/intents` — coordinate submission (policy check → IPFS pin → on-chain registration)
+- `GET /api/v1/intents` — query intent history, filter by agent/status/date
+- `GET /api/v1/intents/{id}/payload` — retrieve full payload from IPFS via on-chain CID
+- `POST /api/v1/validate` — pre-flight simulation with optional intent context
+- Dashboard — per-execution intent panel, reconciliation status, anomaly badges where execution deviated from stated intent
 
 ### What this enables
 
-**Per-action audit trail with reasoning** — every execution in the audit log has a human-readable explanation alongside the transaction hash.
+**Verifiable audit trail** — every execution links to a full intent payload stored on IPFS with its CID committed on-chain. The chain proves the intent existed and was registered before execution. IPFS proves what it said. No backend trust required.
 
-**Anomaly detection** — a swap that has no linked intent, or whose on-chain parameters don't match the stated plan, gets flagged. A rule like "agent submitted intent to swap $50 but executed $5,000" is trivially detectable.
+**Anomaly detection** — an execution with no linked intent, or one whose on-chain parameters don't match the IPFS payload, is immediately visible. A rule like "agent intended to swap $50 but executed $5,000" is caught during reconciliation.
 
-**Policy intent alignment** — intent fields can be validated against the policy before the transaction is submitted. If an agent's stated reasoning mentions a protocol that is not on the allowlist, it can be rejected at the pre-flight stage before anything reaches the chain.
+**Policy alignment at submission** — intent constraints are validated against the agent's active policy before anything hits the chain. If an intent requests access to a protocol not on the allowlist, it is rejected before IPFS pinning ever happens.
 
-**Operator visibility** — owners can see not just what their agents did but what they were trying to accomplish, making it practical to audit autonomous agent behavior at scale.
-
-### Implementation sketch
-
-| Component | Change |
-|---|---|
-| New `intent_records` table | `agent_id`, `intent_text`, `planned_actions` (JSONB), `context` (JSONB), `linked_permission_id`, `executed_at`, `tx_hash` |
-| `POST /api/v1/agents/{id}/intent` | Accepts intent payload, validates it against the agent's active permission, returns `intent_id` |
-| Pre-flight enhancement | `/validate` optionally checks planned actions against constraints and returns per-action pass/fail |
-| Indexer | Links `Executed` events back to pending intents using `intent_id` embedded in calldata |
-| Dashboard | New "Intent" column in audit log, intent detail panel, anomaly badges where execution deviated from intent |
-| SDK | Helper that wraps the submit-intent → execute flow so agent developers don't have to wire this manually |
-
-This keeps the hard enforcement guarantee that already exists — an agent that submits a misleading intent and tries to execute something different still hits the `PermissionEnforcer` and reverts. Intent capture is a visibility and auditability layer on top of enforcement, not a replacement for it.
+**Operator visibility at scale** — owners see not just what agents did but what they were trying to accomplish, with a cryptographic link between the two.
