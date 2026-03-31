@@ -513,6 +513,31 @@ Upgrading from EOA to smart account is one-way via `POST /api/v1/agents/{id}/upg
 | AgentAccountFactory | `0xb284E09d396F5fbeb49587886FB13a186767F14C` |
 | EntryPoint (v0.6) | `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789` |
 
+## Supported Tokens
+
+The `PriceOracle` normalizes ERC-20 values to ETH for `maxValuePerTx` and `maxDailyVolume` constraint enforcement. Tokens not listed below will cause `validateUserOp` to revert if a value constraint is active.
+
+### Base Mainnet
+
+| Token | Contract Address | Notes |
+|-------|-----------------|-------|
+| ETH (native) | — | Always supported; no feed needed |
+| USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | Native USDC on Base |
+| WETH | `0x4200000000000000000000000000000000000006` | Uses ETH/USD feed (1:1 peg) |
+| USDT | `0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2` | Bridged USDT |
+| DAI | `0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb` | Bridged DAI |
+| USDbC | `0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA` | Bridged USDC (older pools); uses USDC/USD feed |
+| cbETH | `0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22` | Coinbase staked ETH |
+| cbBTC | `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` | Coinbase wrapped BTC |
+
+### Sepolia Testnet
+
+| Token | Contract Address | Notes |
+|-------|-----------------|-------|
+| ETH (native) | — | Always supported |
+| USDC | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` | Sepolia test USDC |
+| LINK | `0x779877A7B0D9E8603169DdbD7836e478b4624789` | Sepolia test LINK |
+
 ## Dashboard
 
 All API operations documented above are also available via the web dashboard at **https://agentguardrail.xyz/**, which provides a visual interface for managing agents, policies, permissions, and audit logs.

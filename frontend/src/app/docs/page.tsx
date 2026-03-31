@@ -864,6 +864,61 @@ const hash = await client.sendTransaction({
                 </Card>
               </div>
 
+              <h3 className="text-lg font-semibold mt-2">Supported Tokens</h3>
+              <p className="text-sm text-muted-foreground">
+                The <code className="text-xs bg-muted px-1 py-0.5 rounded">PriceOracle</code> normalizes ERC-20 values to ETH for{' '}
+                <code className="text-xs bg-muted px-1 py-0.5 rounded">maxValuePerTx</code> and{' '}
+                <code className="text-xs bg-muted px-1 py-0.5 rounded">maxDailyVolume</code> constraints.
+                Transactions involving unsupported tokens will revert during <code className="text-xs bg-muted px-1 py-0.5 rounded">validateUserOp</code> if a value constraint is active.
+              </p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Base Mainnet</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left pb-2 font-medium text-muted-foreground">Token</th>
+                          <th className="text-left pb-2 font-medium text-muted-foreground">Contract</th>
+                        </tr>
+                      </thead>
+                      <tbody className="space-y-1">
+                        <tr className="border-b border-muted/50"><td className="py-1.5 font-medium">ETH (native)</td><td className="py-1.5 text-muted-foreground">always supported</td></tr>
+                        <tr className="border-b border-muted/50"><td className="py-1.5 font-medium">USDC</td><td className="py-1.5 font-mono break-all">0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913</td></tr>
+                        <tr className="border-b border-muted/50"><td className="py-1.5 font-medium">WETH</td><td className="py-1.5 font-mono break-all">0x4200000000000000000000000000000000000006</td></tr>
+                        <tr className="border-b border-muted/50"><td className="py-1.5 font-medium">USDT</td><td className="py-1.5 font-mono break-all">0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2</td></tr>
+                        <tr className="border-b border-muted/50"><td className="py-1.5 font-medium">DAI</td><td className="py-1.5 font-mono break-all">0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb</td></tr>
+                        <tr className="border-b border-muted/50"><td className="py-1.5 font-medium">USDbC</td><td className="py-1.5 font-mono break-all">0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA</td></tr>
+                        <tr className="border-b border-muted/50"><td className="py-1.5 font-medium">cbETH</td><td className="py-1.5 font-mono break-all">0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22</td></tr>
+                        <tr><td className="py-1.5 font-medium">cbBTC</td><td className="py-1.5 font-mono break-all">0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf</td></tr>
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Sepolia Testnet</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left pb-2 font-medium text-muted-foreground">Token</th>
+                          <th className="text-left pb-2 font-medium text-muted-foreground">Contract</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-muted/50"><td className="py-1.5 font-medium">ETH (native)</td><td className="py-1.5 text-muted-foreground">always supported</td></tr>
+                        <tr className="border-b border-muted/50"><td className="py-1.5 font-medium">USDC</td><td className="py-1.5 font-mono break-all">0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238</td></tr>
+                        <tr><td className="py-1.5 font-medium">LINK</td><td className="py-1.5 font-mono break-all">0x779877A7B0D9E8603169DdbD7836e478b4624789</td></tr>
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              </div>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
