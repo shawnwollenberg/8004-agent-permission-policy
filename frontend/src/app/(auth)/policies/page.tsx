@@ -173,8 +173,19 @@ export default function PoliciesPage() {
       if (!def.constraints.maxTxCount) delete def.constraints.maxTxCount
     }
 
-    // Remove empty duration
+    // Convert datetime-local values ("2025-03-30T00:00") to full RFC 3339
+    // strings ("2025-03-30T00:00:00Z") required by the backend's time.Time parser
     if (def.duration) {
+      if (def.duration.validFrom) {
+        def.duration.validFrom = def.duration.validFrom.length === 16
+          ? def.duration.validFrom + ':00.000Z'
+          : def.duration.validFrom
+      }
+      if (def.duration.validUntil) {
+        def.duration.validUntil = def.duration.validUntil.length === 16
+          ? def.duration.validUntil + ':00.000Z'
+          : def.duration.validUntil
+      }
       if (!def.duration.validFrom && !def.duration.validUntil) {
         delete def.duration
       }

@@ -382,37 +382,37 @@ else:
                       <div>
                         <p className="text-muted-foreground mb-1">IdentityRegistry</p>
                         <code className="text-xs bg-background px-2 py-1 rounded">
-                          0xc1fa477f991C74Cc665E605fC74f0e2B795b5104
+                          0xd0978eA4101d6144457bfbF5317499fbb5Fccf01
                         </code>
                       </div>
                       <div>
                         <p className="text-muted-foreground mb-1">PolicyRegistry</p>
                         <code className="text-xs bg-background px-2 py-1 rounded">
-                          0x92cd41e6a4aA13072CeBCda8830d48f269F058c4
+                          0xc35B3D74521005C7AeA58E1B3483DcBE99B1336B
                         </code>
                       </div>
                       <div>
                         <p className="text-muted-foreground mb-1">PermissionEnforcer</p>
                         <code className="text-xs bg-background px-2 py-1 rounded">
-                          0xbF63Fa97cfBba99647B410f205730d63d831061c
+                          0xDc602Cf56679FF23dd17Ea65d3c47E7Ba81Eb470
                         </code>
                       </div>
                       <div>
                         <p className="text-muted-foreground mb-1">PriceOracle</p>
                         <code className="text-xs bg-background px-2 py-1 rounded">
-                          0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3
+                          0x32b2088F68427526bE8931C2Dc61eC2520d10F00
                         </code>
                       </div>
                       <div>
                         <p className="text-muted-foreground mb-1">GuardrailFeeManager</p>
                         <code className="text-xs bg-background px-2 py-1 rounded">
-                          0xD1B7Bd65F2aB60ff84CdDF48f306a599b01d293A
+                          0x980d454d79306AFdB8EE5B01F50BeF84760A8380
                         </code>
                       </div>
                       <div>
                         <p className="text-muted-foreground mb-1">AgentAccountFactory</p>
                         <code className="text-xs bg-background px-2 py-1 rounded">
-                          0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C
+                          0x94991827135fbd0E681B3db51699e4988a7752f1
                         </code>
                       </div>
                     </div>
@@ -436,19 +436,19 @@ else:
                       <div>
                         <p className="text-muted-foreground mb-1">PermissionEnforcer</p>
                         <code className="text-xs bg-background px-2 py-1 rounded">
-                          0x94991827135fbd0E681B3db51699e4988a7752f1
+                          0x45Aa939A935b6B2Bde32a43aD48cF58AE0D9308d
                         </code>
                       </div>
                       <div>
                         <p className="text-muted-foreground mb-1">GuardrailFeeManager</p>
                         <code className="text-xs bg-background px-2 py-1 rounded">
-                          0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12
+                          0x59f50323A5e31ec64470b854c44735EC95929c78
                         </code>
                       </div>
                       <div>
                         <p className="text-muted-foreground mb-1">AgentAccountFactory</p>
                         <code className="text-xs bg-background px-2 py-1 rounded">
-                          0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E
+                          0xb284E09d396F5fbeb49587886FB13a186767F14C
                         </code>
                       </div>
                       <div>

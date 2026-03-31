@@ -727,7 +727,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Action validation with constraints (value, volume, tx count, tokens, protocols, chains)</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xbF63Fa97cfBba99647B410f205730d63d831061c</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xDc602Cf56679FF23dd17Ea65d3c47E7Ba81Eb470</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> validateAction, setConstraints, recordUsage, getRemainingQuota
                     </p>
@@ -743,7 +743,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Chainlink-powered ETH/USD and token price feeds for USD conversion</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xf3c8c6BDc54C60EDaE6AE84Ef05B123597C355B3</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x32b2088F68427526bE8931C2Dc61eC2520d10F00</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> getEthUsdPrice, getEthValue, setTokenFeed
                     </p>
@@ -759,7 +759,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Centralized fee configuration for account creation and transfer fees</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xD1B7Bd65F2aB60ff84CdDF48f306a599b01d293A</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x980d454d79306AFdB8EE5B01F50BeF84760A8380</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> getCreationFeeWei, calculateTransferFee, feeCollector
                     </p>
@@ -775,7 +775,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">CREATE2 factory for deterministic smart account deployment</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xCE621A324A8cb40FD424EB0D41286A97f6a6c91C</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x94991827135fbd0E681B3db51699e4988a7752f1</code>
                     <p className="text-xs text-muted-foreground mt-2">
                       <strong>Key functions:</strong> createAccount (payable), getAddress, getCreationFee
                     </p>
@@ -820,7 +820,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Action validation with constraints</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x94991827135fbd0E681B3db51699e4988a7752f1</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x45Aa939A935b6B2Bde32a43aD48cF58AE0D9308d</code>
                   </CardContent>
                 </Card>
 
@@ -846,7 +846,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">Fee configuration for accounts</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x0f77fdD1AFCe0597339dD340E738CE3dC9A5CC12</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0x59f50323A5e31ec64470b854c44735EC95929c78</code>
                   </CardContent>
                 </Card>
 
@@ -859,7 +859,7 @@ const hash = await client.sendTransaction({
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-2">CREATE2 factory for smart accounts</p>
-                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xA831229B58C05d5bA9ac109f3B29e268A0e5F41E</code>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded">0xb284E09d396F5fbeb49587886FB13a186767F14C</code>
                   </CardContent>
                 </Card>
               </div>
